@@ -12,15 +12,19 @@ endif
 CFLAGS = -ggdb -Wall -Wpedantic
 
 # prog.c -> prog
-src = $(wildcard *.c)
+src := $(wildcard *.c)
 obj := $(src:.c=)
 
+top_dir := $(PWD)
+include_dir := $(top_dir)/include
+include := $(wildcard $(include_dir)/*.c)
+
 all: $(obj)
-% : %.c
+% : %.c $(include)
 	$(foreach comm,$(CC),\
 		$(if $(shell command -v $(comm) 2>/dev/null),,\
 			$(error $(comm) not found, consider installing)))
-	$(CC) $< -o $@ $(CFLAGS)
+	$(CC) $< $(include) -o $@ $(CFLAGS)
 
 .PHONY: clean
 clean:
