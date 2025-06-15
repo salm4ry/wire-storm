@@ -8,8 +8,7 @@
 
 #include "ctmp.h"
 
-/* TODO modify to parse whole header instead of reading byte-by-byte
- *
+/*
  * Validate the magic and length of the data before forwarding. Any messages
  * with an excessive length must be dropped
  * -> TODO define "excessive length"
@@ -19,29 +18,30 @@ int parse_message(int sock_fd)
 {
 	int bytes_read;
 	uint16_t length;
-	unsigned char magic;
-	unsigned char *message = NULL;
+	unsigned char header[HEADER_LENGTH], *message = NULL;
 
-	/* validate magic byte */
-	if ((bytes_read = read(sock_fd, &magic, 1)) > 0) {
-		if (magic != MAGIC) {
-			printf("invalid data\n");
-			return 1;
-		} else {
-			printf("magic byte found!\n");
-		}
+	/* read in header */
+	bytes_read = read(sock_fd, &header, HEADER_LENGTH);
+	if (bytes_read < 0) {
+		/* read failed */
+		perror("read");
+		return -errno;
+	} else if (bytes_read == 0) {
+		/* no data sent */
+		return -1;
 	}
 
-	/* read in padding byte */
-	read(sock_fd, &magic, 1);
-
-	/* read in length (16-bit unsigned network order) */
-	/* TODO remove magic constant */
-	if ((bytes_read = read(sock_fd, &length, 2)) > 0) {
-		/* convert to host byte order */
-		length = ntohs(length);
-		printf("length: %u\n", length);
+	/* validate magic byte (first byte of header) */
+	if (header[0] != MAGIC) {
+		printf("magic byte check failed: found %02x\n", header[0]);
+		return -1;
 	}
+
+	/* length = header bytes 2 and 3 */
+	length = (header[3] << 8) + header[2];
+	/* convert to host byte order */
+	length = ntohs(length);
+	printf("length: %u\n", length);
 
 	/* read in rest of message, allocating buffer with chosen length */
 	message = malloc(length * sizeof(unsigned char));
@@ -51,12 +51,7 @@ int parse_message(int sock_fd)
 	}
 
 	bytes_read = read(sock_fd, message, length);
-	if (bytes_read > 0) {
-		for (int i = 0; i < length; i++) {
-			printf("\\x%02x", message[i]);
-		}
-		printf("\n");
-	}
+	printf("%s\n", message);
 	free(message);
 
 	return 0;
