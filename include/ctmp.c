@@ -43,15 +43,23 @@ int parse_message(int sock_fd)
 	length = ntohs(length);
 	printf("length: %u\n", length);
 
-	/* read in rest of message, allocating buffer with chosen length */
-	message = malloc(length * sizeof(unsigned char));
+	/* read in rest of message, allocating buffer with chosen length
+	 * +1 for NULL terminator */
+	message = malloc((length+1) * sizeof(unsigned char));
 	if (!message) {
 		perror("malloc");
 		exit(errno);
 	}
 
+	/* explicitly set last byte to NULL terminator before reading in message */
+	message[length] = '\0';
 	bytes_read = read(sock_fd, message, length);
-	printf("%s\n", message);
+
+	/* NOTE use this check to determine whether messages has the correct
+	 * length value set in their header */
+	if (bytes_read == length) {
+		printf("%s\n", message);
+	}
 	free(message);
 
 	return 0;
