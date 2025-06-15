@@ -2,13 +2,13 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
-#include <errno.h>
 
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "./include/socket.h"
+#include "include/socket.h"
+#include "include/ctmp.h"
 
 #define SERVER_PORT 33333
 #define BACKLOG 3 /* max number of pending connections */
@@ -19,63 +19,9 @@
  *
  * Allow multiple destination clients to connect on port 44444
  *
- * Accept CTMP messages from the soruce and forward to all destination clients.
+ * Accept CTMP messages from the source and forward to all destination clients.
  * These should be forwarded in the order they are received
- *
- * Validate the magic and length of the data before forwarding. Any messages
- * with an excessive length must be dropped
- * -> TODO define "excessive length"
  */
-
-
-int parse_message(int sock_fd)
-{
-	int bytes_read;
-	uint16_t length;
-	unsigned char magic;
-	unsigned char *message = NULL;
-
-	/* validate magic byte */
-	if ((bytes_read = read(sock_fd, &magic, 1)) > 0) {
-		if (magic != MAGIC) {
-			printf("invalid data\n");
-			return 1;
-		} else {
-			printf("magic byte found!\n");
-		}
-	}
-
-	/* read in padding byte
-	 * TODO find a better way to handle padding */
-	read(sock_fd, &magic, 1);
-
-	/* read in length (16-bit unsigned network order) */
-	if ((bytes_read = read(sock_fd, &length, 2)) > 0) {
-		/* convert to host byte order */
-		length = ntohs(length);
-		printf("length: %u\n", length);
-	}
-
-	/* read in rest of message */
-	/* allocate buffer */
-	/* TODO define "excessive length" and check here */
-	message = malloc(length * sizeof(unsigned char));
-	if (!message) {
-		perror("malloc");
-		exit(errno);
-	}
-
-	bytes_read = read(sock_fd, message, length);
-	if (bytes_read > 0) {
-		for (int i = 0; i < length; i++) {
-			printf("\\x%02x", message[i]);
-		}
-		printf("\n");
-	}
-	free(message);
-
-	return 0;
-}
 
 int main(int argc, char *argv[])
 {
