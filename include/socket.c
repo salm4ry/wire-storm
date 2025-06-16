@@ -16,7 +16,7 @@ struct sockaddr_in server_address(int port)
 	struct sockaddr_in address;
 
 	address.sin_family = AF_INET; /* IPv4 */
-	address.sin_addr.s_addr = INADDR_ANY; /* TODO meaning */
+	address.sin_addr.s_addr = INADDR_ANY; /* bind socket to all local interfaces */
 	address.sin_port = htons(port);
 
 	return address;
