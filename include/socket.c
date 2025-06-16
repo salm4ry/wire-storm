@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -9,43 +10,62 @@
  * Socket code based on https://www.geeksforgeeks.org/c/socket-programming-cc/
  */
 
-int server_create(int port)
+struct sockaddr_in server_address(int port)
 {
-	int server_fd, opt = 1;
 	struct sockaddr_in address;
 
+	address.sin_family = AF_INET; /* IPv4 */
+	address.sin_addr.s_addr = INADDR_ANY; /* TODO meaning */
+	address.sin_port = htons(port);
+
+	return address;
+}
+
+struct server_socket *server_create(int port)
+{
+	int opt = 1;
+	struct server_socket *server;
+
+	server = malloc(sizeof (struct server_socket));
+	if (!server) {
+		perror("malloc");
+		exit(errno);
+	}
+
 	/* set up socket */
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	if ((server->fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket");
-		return -errno;
+		goto cleanup;
 	}
 
 	/* set socket options */
-	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+	if (setsockopt(server->fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
 				&opt, sizeof(opt))) {
 		perror("setsockopt");
-		return -errno;
+		goto cleanup;
 	}
 
 	/* bind to port */
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(port);
+	server->addr = server_address(port);
 
-	if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
+	if (bind(server->fd, (struct sockaddr *) &server->addr, sizeof(server->addr)) < 0) {
 		perror("bind");
-		return -errno;
+		goto cleanup;
 	}
 
 	/* listen for connections
 	 * backlog = max number of pending connections */
-	if (listen(server_fd, BACKLOG) < 0) {
+	if (listen(server->fd, BACKLOG) < 0) {
 		perror("listen");
-		return -errno;
+		goto cleanup;
 	}
 
-	/* return new socket file descriptor */
-	return server_fd;
+	/* return new socket file descriptor and address */
+	return server;
+
+cleanup:
+	free(server);
+	return NULL;
 }
 
 int server_accept(int server_fd, struct sockaddr_in address)

@@ -25,22 +25,18 @@
 
 int main(int argc, char *argv[])
 {
-	int server_fd, new_socket;
-	struct sockaddr_in address;
+	int new_socket;
+	struct server_socket *sender_server;
 
-	server_fd = server_create(SERVER_PORT);
-	if (server_fd < 0) {
+	sender_server = server_create(SERVER_PORT);
+	if (!sender_server) {
 		fprintf(stderr, "error setting up server on port %d\n", SERVER_PORT);
-		exit(-server_fd);
+		return EXIT_FAILURE;
 	}
 
 	/* TODO handle client closing and accept a new connection */
 
-	/* TODO clean up */
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(SERVER_PORT);
-	new_socket = server_accept(server_fd, address);
+	new_socket = server_accept(sender_server->fd, sender_server->addr);
 	if (new_socket < 0) {
 		fprintf(stderr, "error accepting connection to port %d\n", SERVER_PORT);
 		exit(-new_socket);
@@ -54,7 +50,8 @@ int main(int argc, char *argv[])
 	close(new_socket);
 
 	/* close listening socket */
-	close(server_fd);
+	close(sender_server->fd);
+	free(sender_server);
 
 	return EXIT_SUCCESS;
 }
