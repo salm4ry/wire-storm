@@ -16,7 +16,7 @@
 
 int parse_message(int sock_fd)
 {
-	int bytes_read;
+	int bytes_read = 0;
 	uint16_t length;
 	unsigned char header[HEADER_LENGTH], *message = NULL;
 
@@ -28,12 +28,12 @@ int parse_message(int sock_fd)
 		return -errno;
 	} else if (bytes_read == 0) {
 		/* no data sent */
-		return -1;
+		goto out;
 	}
 
 	/* validate magic byte (first byte of header) */
 	if (header[0] != MAGIC) {
-		printf("magic byte check failed: found %02x\n", header[0]);
+		printf("magic byte check failed: found 0x%02x\n", header[0]);
 		return -1;
 	}
 
@@ -62,5 +62,6 @@ int parse_message(int sock_fd)
 	}
 	free(message);
 
-	return 0;
+out:
+	return bytes_read;
 }

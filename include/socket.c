@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -79,4 +80,10 @@ int server_accept(int server_fd, struct sockaddr_in address)
 	}
 
 	return new_socket;
+}
+
+void server_close(struct server_socket *server)
+{
+	close(server->fd);
+	free(server);
 }
