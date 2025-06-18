@@ -24,6 +24,8 @@ top_dir := $(PWD)
 include_dir := $(top_dir)/include
 include := $(wildcard $(include_dir)/*.c)
 
+doxyfile = doc/Doxyfile
+
 all: $(obj)
 % : %.c $(include)
 	$(foreach comm,$(CC),\
@@ -34,3 +36,8 @@ all: $(obj)
 .PHONY: clean
 clean:
 	rm -f $(obj)
+
+
+.PHONY: docs
+docs:
+	doxygen $(doxyfile)
