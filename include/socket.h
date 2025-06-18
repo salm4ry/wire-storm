@@ -1,10 +1,16 @@
+/// @file
+
 #include <netinet/in.h>
 
 #define BACKLOG 3
 
+/**
+ * @struct server_socket
+ * @brief Describes a socket server
+ */
 struct server_socket {
-	int fd;
-	struct sockaddr_in addr;
+	int fd;  ///< file descriptor
+	struct sockaddr_in addr;  ///< address
 };
 
 struct sockaddr_in server_address(int port);

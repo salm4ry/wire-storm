@@ -1,3 +1,5 @@
+/// @file
+
 #define MAGIC 0xcc
 #define HEADER_LENGTH 8
 

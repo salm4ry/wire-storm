@@ -5,6 +5,11 @@
 
 /* TODO message prefixes */
 
+/**
+ * @brief Print error message to stderr
+ * @param fmt format string
+ * @param ... format arguments
+ */
 void pr_err(char *fmt, ...)
 {
 	va_list args;
@@ -13,6 +18,11 @@ void pr_err(char *fmt, ...)
 	va_end(args);
 }
 
+/**
+ * @brief Print debug message
+ * @param fmt format string
+ * @param ... format arguments
+ */
 #ifdef DEBUG
 	void pr_debug(char *fmt, ...)
 	{
@@ -25,6 +35,11 @@ void pr_err(char *fmt, ...)
 	void pr_debug(char *fmt, ...) { }
 #endif
 
+/**
+ * @brief Print info message
+ * @param fmt format string
+ * @param ... format arguments
+ */
 void pr_info(char *fmt, ...)
 {
 	va_list args;

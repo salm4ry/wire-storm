@@ -13,6 +13,11 @@
  * Socket code based on https://www.geeksforgeeks.org/c/socket-programming-cc/
  */
 
+/**
+ * @brief Set up socket server address
+ * @param port server port
+ * @return sockaddr_in object describing the socket server address
+ */
 struct sockaddr_in server_address(int port)
 {
 	struct sockaddr_in address;
@@ -23,6 +28,13 @@ struct sockaddr_in server_address(int port)
 
 	return address;
 }
+
+/**
+ * @brief Create socket server listening on a given port
+ * @param port TCP port to listen on
+ * @return pointer to struct server_socket (including file descriptor) on
+ * success, NULL on error
+ */
 
 struct server_socket *server_create(int port)
 {
@@ -71,6 +83,13 @@ cleanup:
 	return NULL;
 }
 
+/**
+ * @brief Accept connection to a given socket server
+ * @param server_fd server file descriptor
+ * @param address server address
+ * @return new socket file descriptor on success, -1 on error (return value of
+ * accept())
+ */
 int server_accept(int server_fd, struct sockaddr_in address)
 {
 	int new_socket;
@@ -84,6 +103,11 @@ int server_accept(int server_fd, struct sockaddr_in address)
 	return new_socket;
 }
 
+/**
+ * @brief Close socket server and related objects
+ * @param server pointer struct containing server file descriptor and address
+ * (to be freed)
+ */
 void server_close(struct server_socket *server)
 {
 	close(server->fd);

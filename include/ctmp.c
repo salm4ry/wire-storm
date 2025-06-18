@@ -17,6 +17,12 @@
  * -> TODO define "excessive length"
  */
 
+/**
+ * @brief Parse CTMP message on a given socket
+ * @param sock_fd file desciptor to read message from
+ * @return number of bytes read on success, -1 if the magic byte check failed,
+ * negative error code otherwise
+ */
 int parse_message(int sock_fd)
 {
 	int bytes_read = 0;
@@ -28,7 +34,8 @@ int parse_message(int sock_fd)
 	if (bytes_read < 0) {
 		/* read failed */
 		perror("read");
-		return -errno;
+		bytes_read = -errno;
+		goto out;
 	} else if (bytes_read == 0) {
 		/* no data sent */
 		goto out;
@@ -37,7 +44,8 @@ int parse_message(int sock_fd)
 	/* validate magic byte (first byte of header) */
 	if (header[0] != MAGIC) {
 		pr_info("magic byte check failed: found 0x%02x\n", header[0]);
-		return -1;
+		bytes_read = -1;
+		goto out;
 	}
 
 	/* length = header bytes 2 and 3 */
