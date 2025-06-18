@@ -13,6 +13,7 @@
 
 #include "include/socket.h"
 #include "include/ctmp.h"
+#include "include/log.h"
 
 #define SRC_PORT 33333
 #define RCV_PORT 44444
@@ -53,13 +54,11 @@ void setup_signal_handler()
 
 	/* handle SIGINT and SIGTERM */
 	if (sigaction(SIGINT, &cleanup_action, NULL) == -1) {
-		fprintf(stderr, "error setting up SIGINT handler: %s\n",
-				strerror(errno));
+		pr_err("error setting up SIGINT handler: %s\n", strerror(errno));
 		exit(errno);
 	}
 	if (sigaction(SIGTERM, &cleanup_action, NULL) == -1) {
-		fprintf(stderr, "error setting up SIGTERM handler: %s\n",
-				strerror(errno));
+		pr_err("error setting up SIGTERM handler: %s\n", strerror(errno));
 		exit(errno);
 	}
 }
@@ -71,13 +70,13 @@ int main(int argc, char *argv[])
 	/* set up servers */
 	src_server = server_create(SRC_PORT);
 	if (!src_server) {
-		fprintf(stderr, "error setting up server on port %d\n", SRC_PORT);
+		pr_err("error setting up server on port %d\n", SRC_PORT);
 		return EXIT_FAILURE;
 	}
 
 	rcv_server = server_create(RCV_PORT);
 	if (!rcv_server) {
-		fprintf(stderr, "error setting up server on port %d\n", RCV_PORT);
+		pr_err("error setting up server on port %d\n", RCV_PORT);
 		return EXIT_FAILURE;
 	}
 
@@ -86,18 +85,18 @@ int main(int argc, char *argv[])
 	while (1) {
 		new_socket = server_accept(src_server->fd, src_server->addr);
 		if (new_socket < 0) {
-			fprintf(stderr, "error accepting connection to port %d\n", SRC_PORT);
+			pr_err("error accepting connection to port %d\n", SRC_PORT);
 			exit(-new_socket);
 		}
 
 		do {
 			bytes_read = parse_message(new_socket);
 			if (bytes_read != -1) {
-				printf("bytes read: %d\n", bytes_read);
+				pr_debug("bytes read: %d\n", bytes_read);
 			}
 		} while (bytes_read);
 
-		printf("closing connection...\n");
+		pr_debug("closing connection...\n");
 		/* close connected socket */
 		close(new_socket);
 	}

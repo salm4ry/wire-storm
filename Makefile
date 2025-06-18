@@ -11,6 +11,11 @@ endif
 # NOTE add additional flags here
 CFLAGS = -ggdb -Wall -Wpedantic
 
+# enable debug logging
+ifeq ($(DEBUG), 1)
+	CFLAGS := $(CFLAGS) -DDEBUG
+endif
+
 # prog.c -> prog
 src := $(wildcard *.c)
 obj := $(src:.c=)

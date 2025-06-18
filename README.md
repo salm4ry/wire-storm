@@ -20,7 +20,7 @@ Environment variables:
 ```
 
 ## To Do
-- [ ] compilation with `-DDEBUG`
+- [x] compilation with `-DDEBUG`
 - [ ] documentation with `doxygen`
 - [ ] define "excessive length"
 - [ ] receiver server
