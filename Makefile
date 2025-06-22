@@ -23,6 +23,7 @@ obj := $(src:.c=)
 top_dir := $(PWD)
 include_dir := $(top_dir)/include
 include := $(wildcard $(include_dir)/*.c)
+doc_dir := $(top_dir)/doc
 
 doxyfile = doc/Doxyfile
 
@@ -41,3 +42,8 @@ clean:
 .PHONY: docs
 docs:
 	doxygen $(doxyfile)
+
+
+.PHONY: clean-docs
+clean-docs:
+	rm -rf $(doc_dir)/html $(doc_dir)/latex
