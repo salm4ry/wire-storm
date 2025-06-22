@@ -66,7 +66,7 @@ void setup_signal_handler()
 
 int main(int argc, char *argv[])
 {
-	int new_socket, bytes_read = 0;
+	int sender_socket, receiver_socket, bytes_read = 0;
 
 	/* set up servers */
 	src_server = server_create(SRC_PORT);
@@ -84,29 +84,26 @@ int main(int argc, char *argv[])
 	/* setup_signal_handler(); */
 
 	while (1) {
-		new_socket = server_accept(src_server->fd, src_server->addr);
-		if (new_socket < 0) {
+		sender_socket = server_accept(src_server->fd, src_server->addr);
+		if (sender_socket < 0) {
 			pr_err("error accepting connection to port %d\n", SRC_PORT);
-			exit(-new_socket);
+			exit(-sender_socket);
+		}
+
+		receiver_socket = server_accept(rcv_server->fd, rcv_server->addr);
+		if (receiver_socket < 0) {
+			pr_err("error accepting connection to port %d\n", RCV_PORT);
+			exit(-receiver_socket);
 		}
 
 		do {
-			bytes_read = parse_message(new_socket);
-			if (bytes_read != -1) {
-				pr_debug("bytes read: %d\n", bytes_read);
-			}
+			bytes_read = parse_message(sender_socket, receiver_socket);
 		} while (bytes_read);
 
 		pr_debug("closing connection...\n");
 		/* close connected socket */
-		close(new_socket);
+		close(sender_socket);
 	}
-
-	while(1) {
-		parse_message(new_socket);
-		sleep(1);
-	}
-
 
 	return EXIT_SUCCESS;
 }

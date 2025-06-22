@@ -19,18 +19,20 @@
 
 /**
  * @brief Parse CTMP message on a given socket
- * @param sock_fd file desciptor to read message from
+ * @param sender_fd file desciptor to read message from
+ * @param receiver_fd file descriptor to forward message to (TODO handle
+ * multiple receivers using multithreaded abstraction)
  * @return number of bytes read on success, -1 if the magic byte check failed,
  * negative error code otherwise
  */
-int parse_message(int sock_fd)
+int parse_message(int sender_fd, int receiver_fd)
 {
 	int bytes_read = 0;
 	uint16_t length;
 	unsigned char header[HEADER_LENGTH], *message = NULL;
 
 	/* read in header */
-	bytes_read = read(sock_fd, &header, HEADER_LENGTH);
+	bytes_read = read(sender_fd, &header, HEADER_LENGTH);
 	if (bytes_read < 0) {
 		/* read failed */
 		perror("read");
@@ -52,7 +54,6 @@ int parse_message(int sock_fd)
 	length = (header[3] << 8) + header[2];
 	/* convert to host byte order */
 	length = ntohs(length);
-	pr_info("length: %u\n", length);
 
 	/* read in rest of message, allocating buffer with chosen length
 	 * +1 for NULL terminator */
@@ -64,12 +65,20 @@ int parse_message(int sock_fd)
 
 	/* explicitly set last byte to NULL terminator before reading in message */
 	message[length] = '\0';
-	bytes_read = read(sock_fd, message, length);
+	bytes_read = read(sender_fd, message, length);
 
-	/* NOTE use this check to determine whether messages has the correct
-	 * length value set in their header */
+	/* determine whether the message has the correct length value set */
+	pr_info("length from header: %u, bytes read: %u\n", length, bytes_read);
 	if (bytes_read == length) {
 		pr_debug("%s\n", message);
+
+		/* TODO replace with send to multiple receivers */
+		send(receiver_fd, message, length, 0);
+	} else {
+		/* length does not match */
+		pr_debug("bytes read %u does not match length %u\n",
+				bytes_read, length);
+		bytes_read = -1;
 	}
 	free(message);
 

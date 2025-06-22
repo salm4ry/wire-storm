@@ -3,4 +3,4 @@
 #define MAGIC 0xcc
 #define HEADER_LENGTH 8
 
-int parse_message(int sock_fd);
+int parse_message(int sender_fd, int receiver_fd);
