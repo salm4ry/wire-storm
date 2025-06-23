@@ -18,8 +18,6 @@
 
 #define SRC_PORT 33333
 #define RCV_PORT 44444
-#define BACKLOG 3 /* max number of pending connections */
-#define MAGIC 0xcc /* magic byte */
 
 /*
  * Allow a single source client to connect on port 33333
@@ -66,7 +64,8 @@ void setup_signal_handler()
 
 int main(int argc, char *argv[])
 {
-	int sender_socket, receiver_socket, bytes_read = 0;
+	int sender_socket, receiver_socket;
+	struct ctmp_msg *msg = NULL;
 
 	/* set up servers */
 	src_server = server_create(SRC_PORT);
@@ -97,8 +96,9 @@ int main(int argc, char *argv[])
 		}
 
 		do {
-			bytes_read = parse_message(sender_socket, receiver_socket);
-		} while (bytes_read);
+			free_msg(msg);
+			msg = parse_msg(sender_socket);
+		} while (msg);
 
 		pr_debug("closing connection...\n");
 		/* close connected socket */

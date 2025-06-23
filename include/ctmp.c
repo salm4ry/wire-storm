@@ -25,18 +25,17 @@
  * @return number of bytes read on success, -1 if the magic byte check failed,
  * negative error code otherwise
  */
-int parse_message(int sender_fd, int receiver_fd)
+struct ctmp_msg *parse_msg(int sender_fd)
 {
 	int bytes_read = 0;
-	uint16_t length;
-	unsigned char header[HEADER_LENGTH], *message = NULL;
+	unsigned char header[HEADER_LENGTH];
+	struct ctmp_msg *msg = NULL;
 
 	/* read in header */
 	bytes_read = read(sender_fd, &header, HEADER_LENGTH);
 	if (bytes_read < 0) {
 		/* read failed */
 		perror("read");
-		bytes_read = -errno;
 		goto out;
 	} else if (bytes_read == 0) {
 		/* no data sent */
@@ -46,42 +45,57 @@ int parse_message(int sender_fd, int receiver_fd)
 	/* validate magic byte (first byte of header) */
 	if (header[0] != MAGIC) {
 		pr_info("magic byte check failed: found 0x%02x\n", header[0]);
-		bytes_read = -1;
 		goto out;
 	}
 
+	msg = malloc(sizeof(struct ctmp_msg));
+	if (!msg) {
+		perror("malloc");
+		exit(errno);
+	}
+
+	msg->data = NULL;
+
 	/* length = header bytes 2 and 3 */
-	length = (header[3] << 8) + header[2];
+	msg->len = (header[3] << 8) + header[2];
 	/* convert to host byte order */
-	length = ntohs(length);
+	msg->len = ntohs(msg->len);
 
 	/* read in rest of message, allocating buffer with chosen length
 	 * +1 for NULL terminator */
-	message = malloc((length+1) * sizeof(unsigned char));
-	if (!message) {
+	msg->data = malloc((msg->len+1) * sizeof(unsigned char));
+	if (!msg->data) {
 		perror("malloc");
 		exit(errno);
 	}
 
 	/* explicitly set last byte to NULL terminator before reading in message */
-	message[length] = '\0';
-	bytes_read = read(sender_fd, message, length);
+	msg->data[msg->len] = '\0';
+	bytes_read = read(sender_fd, msg->data, msg->len);
 
 	/* determine whether the message has the correct length value set */
-	pr_info("length from header: %u, bytes read: %u\n", length, bytes_read);
-	if (bytes_read == length) {
-		pr_debug("%s\n", message);
+	pr_info("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
+	if (bytes_read == msg->len) {
+		pr_debug("%s\n", msg->data);
 
 		/* TODO replace with send to multiple receivers */
-		send(receiver_fd, message, length, 0);
+		/* send(receiver_fd, msg->data, length, 0); */
 	} else {
 		/* length does not match */
 		pr_debug("bytes read %u does not match length %u\n",
-				bytes_read, length);
-		bytes_read = -1;
+				bytes_read, msg->len);
 	}
-	free(message);
 
 out:
-	return bytes_read;
+	return msg;
+}
+
+void free_msg(struct ctmp_msg *msg)
+{
+	if (msg) {
+		if (msg->data) {
+			free(msg->data);
+		}
+		free(msg);
+	}
 }
