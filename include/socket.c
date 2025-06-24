@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <pthread.h>
+
 #include "socket.h"
 
 /*
@@ -98,6 +100,20 @@ int server_accept(int server_fd, struct sockaddr_in address)
 	if ((new_socket = accept(server_fd, (struct sockaddr *) &address, &addrlen)) < 0) {
 		perror("accept");
 		return -errno;
+	}
+
+	return new_socket;
+}
+
+int init_receiver(struct server_socket *server)
+{
+	/* accept new connection */
+	int new_socket;
+
+	new_socket = server_accept(server->fd, server->addr);
+	if (new_socket > 0) {
+		/* TODO create new thread- look at OSSP serverThreaded example
+		 * to see how to make a new thread per client */
 	}
 
 	return new_socket;

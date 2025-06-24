@@ -2,6 +2,8 @@
 
 #include <netinet/in.h>
 
+#define SRC_PORT 33333
+#define DST_PORT 44444
 #define BACKLOG 3
 
 /**

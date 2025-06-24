@@ -1,12 +1,11 @@
 /// @file
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
-
-#include <signal.h>
-#include <string.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -16,8 +15,16 @@
 #include "include/ctmp.h"
 #include "include/log.h"
 
-#define SRC_PORT 33333
-#define RCV_PORT 44444
+struct dst_client_args {
+	int fd;
+	pthread_mutex_t *lock;
+	pthread_cond_t *cond;
+};
+
+struct dst_server_args {
+	pthread_mutex_t *lock;
+	pthread_cond_t *cond;
+};
 
 /*
  * Allow a single source client to connect on port 33333
@@ -28,44 +35,87 @@
  * These should be forwarded in the order they are received
  */
 
-struct server_socket *src_server, *rcv_server;
+struct server_socket *src_server;
 
-void cleanup_handler(int signum)
+/* TODO better explanation
+ * condition for message existing to relay */
+pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
+struct ctmp_msg *current_msg = NULL;
+
+void *handle_conn(void *data)
 {
-	/* tear down server sockets */
-	server_close(src_server);
-	server_close(rcv_server);
+	ssize_t bytes_sent = 0;
+	struct dst_client_args *args = (struct dst_client_args *) data;
+
+	pr_debug("waiting for messages...\n");
+	pthread_mutex_lock(args->lock);
+
+	do {
+		while (!current_msg) {
+			pthread_cond_wait(args->cond, args->lock);
+		}
+
+		/* send message */
+		pr_debug("sending message\n");
+		bytes_sent = send(args->fd, current_msg->data, current_msg->len, 0);
+	} while (bytes_sent > 0);
+
+	close(args->fd);
+	free(args);
+	return NULL;
 }
 
-void setup_signal_handler()
+void *dst_server(void *data)
 {
-	struct sigaction cleanup_action;
+	int res;
+	struct server_socket *dst_server;
+	struct dst_server_args *server_args = (struct dst_server_args *) data;
 
-	/* run cleanup_handler() on receipt of signals specified with
-	 * sigaction() */
-	cleanup_action.sa_handler = cleanup_handler;
-	sigemptyset(&cleanup_action.sa_mask);
-
-	/* actions to block while in signal handler */
-	sigaddset(&cleanup_action.sa_mask, SIGINT);
-	sigaddset(&cleanup_action.sa_mask, SIGTERM);
-	cleanup_action.sa_flags = 0;
-
-	/* handle SIGINT and SIGTERM */
-	if (sigaction(SIGINT, &cleanup_action, NULL) == -1) {
-		pr_err("error setting up SIGINT handler: %s\n", strerror(errno));
-		exit(errno);
+	dst_server = server_create(DST_PORT);
+	if (!dst_server) {
+		pr_err("error setting up server on port %d\n", DST_PORT);
+		exit(EXIT_FAILURE);
 	}
-	if (sigaction(SIGTERM, &cleanup_action, NULL) == -1) {
-		pr_err("error setting up SIGTERM handler: %s\n", strerror(errno));
-		exit(errno);
+
+	while (1) {
+		struct dst_client_args *client_args = NULL;
+		pthread_t current_thread;
+
+		client_args = malloc(sizeof(struct dst_client_args));
+		if (!client_args) {
+			perror("malloc");
+			exit(errno);
+		}
+
+		/* wait for connections */
+		client_args->lock = server_args->lock;
+		client_args->cond = server_args->cond;
+
+		client_args->fd = server_accept(dst_server->fd, dst_server->addr);
+		if (client_args->fd < 0) {
+			pr_err("error accepting connection to port %d\n", DST_PORT);
+		}
+
+		/* create thread for new client */
+		res = pthread_create(&current_thread, NULL, handle_conn, client_args);
+		if (res != 0) {
+			perror("pthread_create");
+			/* TODO how to handle */
+		}
+
+		/* TODO decide how to store threads */
+		/* TODO store messages in linked list/queue? */
 	}
+
+	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
-	int sender_socket, receiver_socket;
-	struct ctmp_msg *msg = NULL;
+	int src_socket, res;
+	pthread_t dst_server_thread;
+	struct dst_server_args *dst_args = NULL;
 
 	/* set up servers */
 	src_server = server_create(SRC_PORT);
@@ -74,35 +124,36 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	rcv_server = server_create(RCV_PORT);
-	if (!rcv_server) {
-		pr_err("error setting up server on port %d\n", RCV_PORT);
-		return EXIT_FAILURE;
+	dst_args = malloc(sizeof(struct dst_server_args));
+	if (!dst_args) {
+		perror("malloc");
+		exit(errno);
 	}
 
-	/* setup_signal_handler(); */
+	dst_args->lock = &msg_lock;
+	dst_args->cond = &msg_cond;
+	res = pthread_create(&dst_server_thread, NULL, &dst_server, dst_args);
+	if (res != 0) {
+		perror("pthread_create");
+		exit(res);
+	}
 
 	while (1) {
-		sender_socket = server_accept(src_server->fd, src_server->addr);
-		if (sender_socket < 0) {
+		src_socket = server_accept(src_server->fd, src_server->addr);
+		if (src_socket < 0) {
 			pr_err("error accepting connection to port %d\n", SRC_PORT);
-			exit(-sender_socket);
-		}
-
-		receiver_socket = server_accept(rcv_server->fd, rcv_server->addr);
-		if (receiver_socket < 0) {
-			pr_err("error accepting connection to port %d\n", RCV_PORT);
-			exit(-receiver_socket);
+			exit(-src_socket);
 		}
 
 		do {
-			free_msg(msg);
-			msg = parse_msg(sender_socket);
-		} while (msg);
+			free_msg(current_msg);
+			current_msg = parse_msg(src_socket);
+			pthread_cond_broadcast(&msg_cond);
+		} while (current_msg);
 
 		pr_debug("closing connection...\n");
 		/* close connected socket */
-		close(sender_socket);
+		close(src_socket);
 	}
 
 	return EXIT_SUCCESS;

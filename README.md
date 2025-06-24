@@ -25,7 +25,7 @@ Environment variables:
 - [ ] documentation with `doxygen`
 - [ ] define "excessive length"
 - [ ] receiver server
-    - [ ] forward messages
+    - [x] forward valid messages
     - [ ] handle multiple clients
 - [ ] own test cases
     - [ ] invalid length

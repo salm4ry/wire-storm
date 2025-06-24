@@ -76,7 +76,7 @@ struct ctmp_msg *parse_msg(int sender_fd)
 	/* determine whether the message has the correct length value set */
 	pr_info("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
 	if (bytes_read == msg->len) {
-		pr_debug("%s\n", msg->data);
+		/* pr_debug("%s\n", msg->data); */
 
 		/* TODO replace with send to multiple receivers */
 		/* send(receiver_fd, msg->data, length, 0); */
