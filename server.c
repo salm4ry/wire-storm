@@ -43,6 +43,8 @@ pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
 struct ctmp_msg *current_msg = NULL;
 
+/* TODO broadcast function: broadcast message to all fds using the threads */
+
 void *handle_conn(void *data)
 {
 	ssize_t bytes_sent = 0;
@@ -61,6 +63,7 @@ void *handle_conn(void *data)
 		bytes_sent = send(args->fd, current_msg->data, current_msg->len, 0);
 	} while (bytes_sent > 0);
 
+	/* TODO remove from linked list of client threads */
 	close(args->fd);
 	free(args);
 	return NULL;
@@ -71,6 +74,8 @@ void *dst_server(void *data)
 	int res;
 	struct server_socket *dst_server;
 	struct dst_server_args *server_args = (struct dst_server_args *) data;
+
+	/* TODO keep track of all clients that are currently running */
 
 	dst_server = server_create(DST_PORT);
 	if (!dst_server) {
