@@ -22,12 +22,17 @@ Environment variables:
 
 ## To Do
 - [x] compilation with `-DDEBUG`
-- [ ] documentation with `doxygen`
+- [x] documentation with `doxygen`
+    - [ ] update for new functions
 - [ ] define "excessive length"
-- [ ] receiver server
+- [ ] finalise error handling
+- [x] receiver server
     - [x] forward valid messages
-    - [ ] handle multiple clients
+    - [x] handle multiple clients
 - [ ] own test cases
     - [ ] invalid length
     - [ ] invalid padding
     - [ ] messages in correct order
+- [ ] Wire Storm Reloaded
+    - [ ] updated header parsing (checksum calculation + validation)
+    - [ ] log errors on invalid checksum
