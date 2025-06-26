@@ -1,81 +1,31 @@
-/// @file
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <unistd.h>
+#include <stdbool.h>
+
 #include <errno.h>
 #include <pthread.h>
+#include <sys/queue.h>
 
-#include <sys/param.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
+#include "include/log.h"
 #include "include/socket.h"
 #include "include/ctmp.h"
-#include "include/log.h"
 
-struct dst_client_args {
+struct client_entry {
 	int fd;
-	pthread_mutex_t *lock;
-	pthread_cond_t *cond;
+	bool open;
+	TAILQ_ENTRY(client_entry) entries;
 };
 
-struct dst_server_args {
-	pthread_mutex_t *lock;
-	pthread_cond_t *cond;
-};
-
-/*
- * Allow a single source client to connect on port 33333
- *
- * Allow multiple destination clients to connect on port 44444
- *
- * Accept CTMP messages from the source and forward to all destination clients.
- * These should be forwarded in the order they are received
- */
-
-struct server_socket *src_server;
-
-/* TODO better explanation
- * condition for message existing to relay */
-pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
-struct ctmp_msg *current_msg = NULL;
-
-/* TODO broadcast function: broadcast message to all fds using the threads */
-
-void *handle_conn(void *data)
-{
-	ssize_t bytes_sent = 0;
-	struct dst_client_args *args = (struct dst_client_args *) data;
-
-	pr_debug("waiting for messages...\n");
-	pthread_mutex_lock(args->lock);
-
-	do {
-		while (!current_msg) {
-			pthread_cond_wait(args->cond, args->lock);
-		}
-
-		/* send message */
-		pr_debug("sending message\n");
-		bytes_sent = send(args->fd, current_msg->data, current_msg->len, 0);
-	} while (bytes_sent > 0);
-
-	/* TODO remove from linked list of client threads */
-	close(args->fd);
-	free(args);
-	return NULL;
-}
+TAILQ_HEAD(client_list, client_entry);
+pthread_mutex_t client_lock = PTHREAD_MUTEX_INITIALIZER;
+struct client_list client_list_head;
 
 void *dst_server(void *data)
 {
-	int res;
-	struct server_socket *dst_server;
-	struct dst_server_args *server_args = (struct dst_server_args *) data;
-
-	/* TODO keep track of all clients that are currently running */
+	int new_fd;
+	struct server_socket *dst_server = NULL;
+	struct client_entry *new_entry = NULL;
 
 	dst_server = server_create(DST_PORT);
 	if (!dst_server) {
@@ -84,66 +34,88 @@ void *dst_server(void *data)
 	}
 
 	while (1) {
-		struct dst_client_args *client_args = NULL;
-		pthread_t current_thread;
+		new_fd = server_accept(dst_server->fd, dst_server->addr);
+		if (new_fd < 0) {
+			pr_err("error accepting connection to port %d\n", DST_PORT);
+			/* TODO exit? */
+		}
 
-		client_args = malloc(sizeof(struct dst_client_args));
-		if (!client_args) {
+		new_entry = malloc(sizeof(struct client_entry));
+		if (!new_entry) {
 			perror("malloc");
 			exit(errno);
 		}
 
-		/* wait for connections */
-		client_args->lock = server_args->lock;
-		client_args->cond = server_args->cond;
+		new_entry->fd = new_fd;
+		new_entry->open = true;
+		// pthread_mutex_lock(&client_lock);
+		TAILQ_INSERT_TAIL(&client_list_head, new_entry, entries);
+		// pthread_mutex_unlock(&client_lock);
 
-		client_args->fd = server_accept(dst_server->fd, dst_server->addr);
-		if (client_args->fd < 0) {
-			pr_err("error accepting connection to port %d\n", DST_PORT);
-		}
-
-		/* create thread for new client */
-		res = pthread_create(&current_thread, NULL, handle_conn, client_args);
-		if (res != 0) {
-			perror("pthread_create");
-			/* TODO how to handle */
-		}
-
-		/* TODO decide how to store threads */
-		/* TODO store messages in linked list/queue? */
+		new_entry = NULL;
 	}
 
+
 	return NULL;
+}
+
+void broadcast(struct ctmp_msg *msg)
+{
+	ssize_t bytes_sent;
+	struct client_entry *current = NULL, *next = NULL;
+
+	pthread_mutex_lock(&client_lock);
+	current = TAILQ_FIRST(&client_list_head);
+	pthread_mutex_unlock(&client_lock);
+
+	while (current) {
+		if (current->open) {
+			bytes_sent = send(current->fd, msg->header, HEADER_LENGTH, MSG_NOSIGNAL);
+			bytes_sent = send(current->fd, msg->data, msg->len, MSG_NOSIGNAL);
+		}
+
+		if (bytes_sent < 0) {
+			current->open = false;
+		}
+
+		pthread_mutex_lock(&client_lock);
+		next = TAILQ_NEXT(current, entries);
+		pthread_mutex_unlock(&client_lock);
+
+		if (!current->open) {
+			close(current->fd);
+			TAILQ_REMOVE(&client_list_head, current, entries);
+			free(current);
+		}
+
+		current = next;
+	}
 }
 
 int main(int argc, char *argv[])
 {
 	int src_socket, res;
+	struct server_socket *src_server = NULL;
 	pthread_t dst_server_thread;
-	struct dst_server_args *dst_args = NULL;
 
-	/* set up servers */
+	struct ctmp_msg *current_msg = NULL;
+
 	src_server = server_create(SRC_PORT);
 	if (!src_server) {
 		pr_err("error setting up server on port %d\n", SRC_PORT);
 		return EXIT_FAILURE;
 	}
 
-	dst_args = malloc(sizeof(struct dst_server_args));
-	if (!dst_args) {
-		perror("malloc");
-		exit(errno);
-	}
+	TAILQ_INIT(&client_list_head);
 
-	dst_args->lock = &msg_lock;
-	dst_args->cond = &msg_cond;
-	res = pthread_create(&dst_server_thread, NULL, &dst_server, dst_args);
+	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);
 	if (res != 0) {
 		perror("pthread_create");
 		exit(res);
 	}
 
 	while (1) {
+
 		src_socket = server_accept(src_server->fd, src_server->addr);
 		if (src_socket < 0) {
 			pr_err("error accepting connection to port %d\n", SRC_PORT);
@@ -153,11 +125,13 @@ int main(int argc, char *argv[])
 		do {
 			free_msg(current_msg);
 			current_msg = parse_msg(src_socket);
-			pthread_cond_broadcast(&msg_cond);
+			/* TODO add to linked list */
+			if (current_msg) {
+				broadcast(current_msg);
+			}
 		} while (current_msg);
 
-		pr_debug("closing connection...\n");
-		/* close connected socket */
+		pr_debug("closing src connection...\n");
 		close(src_socket);
 	}
 

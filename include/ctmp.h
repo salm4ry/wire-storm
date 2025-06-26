@@ -8,6 +8,7 @@
 /* TOOD docstring */
 struct ctmp_msg
 {
+	unsigned char header[HEADER_LENGTH];
 	uint16_t len;
 	char *data;
 };

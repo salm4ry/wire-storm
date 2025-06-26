@@ -28,25 +28,7 @@
 struct ctmp_msg *parse_msg(int sender_fd)
 {
 	int bytes_read = 0;
-	unsigned char header[HEADER_LENGTH];
 	struct ctmp_msg *msg = NULL;
-
-	/* read in header */
-	bytes_read = read(sender_fd, &header, HEADER_LENGTH);
-	if (bytes_read < 0) {
-		/* read failed */
-		perror("read");
-		goto out;
-	} else if (bytes_read == 0) {
-		/* no data sent */
-		goto out;
-	}
-
-	/* validate magic byte (first byte of header) */
-	if (header[0] != MAGIC) {
-		pr_info("magic byte check failed: found 0x%02x\n", header[0]);
-		goto out;
-	}
 
 	msg = malloc(sizeof(struct ctmp_msg));
 	if (!msg) {
@@ -54,10 +36,31 @@ struct ctmp_msg *parse_msg(int sender_fd)
 		exit(errno);
 	}
 
+	/* read in header */
+	bytes_read = read(sender_fd, msg->header, HEADER_LENGTH);
+	if (bytes_read < 0) {
+		/* read failed */
+		perror("read");
+		goto out;
+	} else if (bytes_read == 0) {
+		/* no data sent */
+		free(msg);
+		msg = NULL;
+		goto out;
+	}
+
+	/* validate magic byte (first byte of header) */
+	if (msg->header[0] != MAGIC) {
+		pr_info("magic byte check failed: found 0x%02x\n", msg->header[0]);
+		free(msg);
+		msg = NULL;
+		goto out;
+	}
+
 	msg->data = NULL;
 
 	/* length = header bytes 2 and 3 */
-	msg->len = (header[3] << 8) + header[2];
+	msg->len = (msg->header[3] << 8) + msg->header[2];
 	/* convert to host byte order */
 	msg->len = ntohs(msg->len);
 
