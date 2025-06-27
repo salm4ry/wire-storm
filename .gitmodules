@@ -1,3 +1,3 @@
-[submodule "tests"]
-	path = tests
+[submodule "wire-storm"]
+	path = wire-storm
 	url = https://github.com/CoreTechSecurity/wire-storm
