@@ -59,9 +59,29 @@ void *dst_server(void *data)
 	return NULL;
 }
 
+void ctmp_send(struct client_entry *client, struct ctmp_msg *msg)
+{
+	ssize_t bytes_sent = 0;
+
+	if (client->open) {
+		/* send header */
+		bytes_sent = send(client->fd, msg->header, HEADER_LENGTH, MSG_NOSIGNAL);
+		if (bytes_sent < 0) {
+			client->open = false;
+			return;
+		}
+
+		/* send body */
+		bytes_sent = send(client->fd, msg->data, msg->len, MSG_NOSIGNAL);
+		if (bytes_sent < 0) {
+			client->open = false;
+			return;
+		}
+	}
+}
+
 void broadcast(struct ctmp_msg *msg)
 {
-	ssize_t bytes_sent;
 	struct client_entry *current = NULL, *next = NULL;
 
 	pthread_mutex_lock(&client_lock);
@@ -69,14 +89,7 @@ void broadcast(struct ctmp_msg *msg)
 	pthread_mutex_unlock(&client_lock);
 
 	while (current) {
-		if (current->open) {
-			bytes_sent = send(current->fd, msg->header, HEADER_LENGTH, MSG_NOSIGNAL);
-			bytes_sent = send(current->fd, msg->data, msg->len, MSG_NOSIGNAL);
-		}
-
-		if (bytes_sent < 0) {
-			current->open = false;
-		}
+		ctmp_send(current, msg);
 
 		pthread_mutex_lock(&client_lock);
 		next = TAILQ_NEXT(current, entries);
