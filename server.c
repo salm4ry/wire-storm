@@ -128,6 +128,7 @@ int main(int argc, char *argv[])
 	}
 
 	while (1) {
+		char test_buffer;
 
 		src_socket = server_accept(src_server->fd, src_server->addr);
 		if (src_socket < 0) {
@@ -135,14 +136,19 @@ int main(int argc, char *argv[])
 			exit(-src_socket);
 		}
 
-		do {
-			free_msg(current_msg);
-			current_msg = parse_msg(src_socket);
-			/* TODO add to linked list */
+		/* keep parsing messages while the connection is open
+		 *
+		 * based on: http://stefan.buettcher.org/cs/conn_closed.html
+		 * MSG_PEEK: return data without removing it from the queue
+		 * MSG_DONTWAIT: enable nonblocking */
+		while (recv(src_socket, &test_buffer, sizeof(test_buffer),
+					MSG_PEEK | MSG_DONTWAIT) != 0) {
+			current_msg = parse_ctmp_msg(src_socket);
 			if (current_msg) {
 				broadcast(current_msg);
+				free_ctmp_msg(current_msg);
 			}
-		} while (current_msg);
+		}
 
 		pr_debug("closing src connection...\n");
 		close(src_socket);
