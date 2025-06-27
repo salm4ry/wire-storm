@@ -101,3 +101,26 @@ struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 out:
 	return msg;
 }
+
+
+/**
+ * @brief Send a CTMP message
+ * @param receiver_fd file descriptor of receiver
+ * @param msg message to send
+ * @return number of bytes sent (negative on error)
+ */
+ssize_t send_ctmp_msg(int receiver_fd, struct ctmp_msg *msg)
+{
+	ssize_t bytes_sent = 0;
+
+	/* send header */
+	bytes_sent = send(receiver_fd, msg->header, HEADER_LENGTH, MSG_NOSIGNAL);
+	if (bytes_sent < 0) {
+		goto out;
+	}
+
+	bytes_sent = send(receiver_fd, msg->data, msg->len, MSG_NOSIGNAL);
+
+out:
+	return bytes_sent;
+}

@@ -1,5 +1,6 @@
 /// @file
 
+#include <stdio.h>
 #include <stdint.h>
 
 #define MAGIC 0xcc
@@ -15,5 +16,6 @@ struct ctmp_msg
 	unsigned char *data;  ///< data following header
 };
 
-struct ctmp_msg *parse_ctmp_msg(int sender_fd);
 void free_ctmp_msg(struct ctmp_msg *msg);
+struct ctmp_msg *parse_ctmp_msg(int sender_fd);
+ssize_t send_ctmp_msg(int receiver_fd, struct ctmp_msg *msg);

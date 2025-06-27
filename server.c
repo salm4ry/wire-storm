@@ -14,85 +14,36 @@
 #include "include/ctmp.h"
 
 struct client_entry {
-	int fd;
-	bool open;
-	TAILQ_ENTRY(client_entry) entries;
+	int fd;  ///< socket file descriptor
+	bool open;  ///< is the connection open?
+	TAILQ_ENTRY(client_entry) entries;  ///< prev + next pointers for client queue
 };
 
-TAILQ_HEAD(client_list, client_entry);
+TAILQ_HEAD(client_list, client_entry);  ///< define client_list as a doubly linked tail queue
 pthread_mutex_t client_lock = PTHREAD_MUTEX_INITIALIZER;
-struct client_list client_list_head;
-
-void *dst_server(void *data)
-{
-	int new_fd;
-	struct server_socket *dst_server = NULL;
-	struct client_entry *new_entry = NULL;
-
-	dst_server = server_create(DST_PORT);
-	if (!dst_server) {
-		pr_err("error setting up server on port %d\n", DST_PORT);
-		exit(EXIT_FAILURE);
-	}
-
-	while (1) {
-		new_fd = server_accept(dst_server->fd, dst_server->addr);
-		if (new_fd < 0) {
-			pr_err("error accepting connection to port %d\n", DST_PORT);
-			/* retry */
-			continue;
-		}
-
-		new_entry = malloc(sizeof(struct client_entry));
-		if (!new_entry) {
-			perror("malloc");
-			exit(errno);
-		}
-
-		new_entry->fd = new_fd;
-		new_entry->open = true;
-		// pthread_mutex_lock(&client_lock);
-		TAILQ_INSERT_TAIL(&client_list_head, new_entry, entries);
-		// pthread_mutex_unlock(&client_lock);
-
-		new_entry = NULL;
-	}
+struct client_list client_queue_head;
 
 
-	return NULL;
-}
-
-void ctmp_send(struct client_entry *client, struct ctmp_msg *msg)
-{
-	ssize_t bytes_sent = 0;
-
-	if (client->open) {
-		/* send header */
-		bytes_sent = send(client->fd, msg->header, HEADER_LENGTH, MSG_NOSIGNAL);
-		if (bytes_sent < 0) {
-			client->open = false;
-			return;
-		}
-
-		/* send body */
-		bytes_sent = send(client->fd, msg->data, msg->len, MSG_NOSIGNAL);
-		if (bytes_sent < 0) {
-			client->open = false;
-			return;
-		}
-	}
-}
-
+/**
+ * @brief Broadcast a CTMP message to all connected receivers
+ * @details Send a given message to all receivers in the client queue, removing
+ * entries relating to closed connections
+ * @param msg message to broadcast
+ */
 void broadcast(struct ctmp_msg *msg)
 {
 	struct client_entry *current = NULL, *next = NULL;
+	ssize_t bytes_sent = 0;
 
 	pthread_mutex_lock(&client_lock);
-	current = TAILQ_FIRST(&client_list_head);
+	current = TAILQ_FIRST(&client_queue_head);
 	pthread_mutex_unlock(&client_lock);
 
 	while (current) {
-		ctmp_send(current, msg);
+		bytes_sent = send_ctmp_msg(current->fd, msg);
+		if (bytes_sent < 0) {
+			current->open = false;
+		}
 
 		pthread_mutex_lock(&client_lock);
 		next = TAILQ_NEXT(current, entries);
@@ -100,7 +51,7 @@ void broadcast(struct ctmp_msg *msg)
 
 		if (!current->open) {
 			close(current->fd);
-			TAILQ_REMOVE(&client_list_head, current, entries);
+			TAILQ_REMOVE(&client_queue_head, current, entries);
 			free(current);
 		}
 
@@ -108,26 +59,21 @@ void broadcast(struct ctmp_msg *msg)
 	}
 }
 
-int main(int argc, char *argv[])
+/**
+ * @brief Run source server
+ * @details Accept a single client connection and parse messages from it,
+ * broadcasting to receivers when valid
+ */
+void src_server()
 {
-	int src_socket, res;
+	int src_socket;
 	struct server_socket *src_server = NULL;
-	pthread_t dst_server_thread;
-
 	struct ctmp_msg *current_msg = NULL;
 
 	src_server = server_create(SRC_PORT);
 	if (!src_server) {
 		pr_err("error setting up server on port %d\n", SRC_PORT);
-		return EXIT_FAILURE;
-	}
-
-	TAILQ_INIT(&client_list_head);
-
-	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);
-	if (res != 0) {
-		perror("pthread_create");
-		exit(res);
+		exit(EXIT_FAILURE);
 	}
 
 	while (1) {
@@ -156,6 +102,68 @@ int main(int argc, char *argv[])
 		pr_debug("closing src connection...\n");
 		close(src_socket);
 	}
+}
+
+/**
+ * @brief Run destination server
+ * @details Accept client connections and update the shared queue of client file
+ * descriptors
+ */
+void *dst_server()
+{
+	int new_fd;
+	struct server_socket *dst_server = NULL;
+	struct client_entry *new_entry = NULL;
+
+	dst_server = server_create(DST_PORT);
+	if (!dst_server) {
+		pr_err("error setting up server on port %d\n", DST_PORT);
+		exit(EXIT_FAILURE);
+	}
+
+	while (1) {
+		new_fd = server_accept(dst_server->fd, dst_server->addr);
+		if (new_fd < 0) {
+			pr_err("error accepting connection to port %d\n", DST_PORT);
+			/* retry */
+			continue;
+		}
+
+		new_entry = malloc(sizeof(struct client_entry));
+		if (!new_entry) {
+			perror("malloc");
+			exit(errno);
+		}
+
+		new_entry->fd = new_fd;
+		new_entry->open = true;
+		pthread_mutex_lock(&client_lock);
+		TAILQ_INSERT_TAIL(&client_queue_head, new_entry, entries);
+		pthread_mutex_unlock(&client_lock);
+
+		new_entry = NULL;
+	}
+
+	return NULL;
+}
+
+int main(int argc, char *argv[])
+{
+	int res;
+	pthread_t dst_server_thread;
+
+	/* initialise client queue */
+	TAILQ_INIT(&client_queue_head);
+
+	/* create destination server thread */
+	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);
+	if (res != 0) {
+		perror("pthread_create");
+		exit(res);
+	}
+
+	/* run source server */
+	src_server();
 
 	return EXIT_SUCCESS;
 }
