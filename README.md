@@ -23,9 +23,9 @@ Environment variables:
 ## To Do
 - [x] compilation with `-DDEBUG`
 - [x] documentation with `doxygen`
-    - [ ] update for new functions
+    - [x] update for new functions
 - [ ] define "excessive length"
-- [ ] finalise error handling
+- [x] finalise error handling
 - [x] receiver server
     - [x] forward valid messages
     - [x] handle multiple clients
