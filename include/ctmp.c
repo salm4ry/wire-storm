@@ -18,14 +18,26 @@
  */
 
 /**
+ * @brief Free a given `struct ctmp_msg` object
+ * @param msg object to free
+ */
+void free_ctmp_msg(struct ctmp_msg *msg)
+{
+	if (msg) {
+		if (msg->data) {
+			free(msg->data);
+		}
+		free(msg);
+	}
+}
+
+/**
  * @brief Parse CTMP message on a given socket
  * @param sender_fd file desciptor to read message from
- * @param receiver_fd file descriptor to forward message to (TODO handle
- * multiple receivers using multithreaded abstraction)
- * @return number of bytes read on success, -1 if the magic byte check failed,
- * negative error code otherwise
+ * @return parsed message structure, NULL on error (invalid message/failed
+ * to read)
  */
-struct ctmp_msg *parse_msg(int sender_fd)
+struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 {
 	int bytes_read = 0;
 	struct ctmp_msg *msg = NULL;
@@ -51,7 +63,7 @@ struct ctmp_msg *parse_msg(int sender_fd)
 
 	/* validate magic byte (first byte of header) */
 	if (msg->header[0] != MAGIC) {
-		pr_info("magic byte check failed: found 0x%02x\n", msg->header[0]);
+		pr_err("invalid message: magic byte check failed (found 0x%02x)\n", msg->header[0]);
 		free(msg);
 		msg = NULL;
 		goto out;
@@ -77,28 +89,15 @@ struct ctmp_msg *parse_msg(int sender_fd)
 	bytes_read = read(sender_fd, msg->data, msg->len);
 
 	/* determine whether the message has the correct length value set */
-	pr_info("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
-	if (bytes_read == msg->len) {
-		/* pr_debug("%s\n", msg->data); */
-
-		/* TODO replace with send to multiple receivers */
-		/* send(receiver_fd, msg->data, length, 0); */
-	} else {
+	pr_debug("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
+	if (bytes_read != msg->len) {
 		/* length does not match */
-		pr_debug("bytes read %u does not match length %u\n",
+		pr_err("invalid message: bytes read %u does not match length %u\n",
 				bytes_read, msg->len);
+		free_ctmp_msg(msg);
+		msg = NULL;
 	}
 
 out:
 	return msg;
-}
-
-void free_msg(struct ctmp_msg *msg)
-{
-	if (msg) {
-		if (msg->data) {
-			free(msg->data);
-		}
-		free(msg);
-	}
 }

@@ -3,15 +3,17 @@
 #include <stdint.h>
 
 #define MAGIC 0xcc
-#define HEADER_LENGTH 8
+#define HEADER_LENGTH 8  ///< CTMP header length
 
-/* TOOD docstring */
+/**
+ * @brief CTMP message
+ */
 struct ctmp_msg
 {
-	unsigned char header[HEADER_LENGTH];
-	uint16_t len;
-	char *data;
+	unsigned char header[HEADER_LENGTH];  ///< message header
+	uint16_t len;  ///< length of data following header
+	unsigned char *data;  ///< data following header
 };
 
-struct ctmp_msg *parse_msg(int sender_fd);
-void free_msg(struct ctmp_msg *msg);
+struct ctmp_msg *parse_ctmp_msg(int sender_fd);
+void free_ctmp_msg(struct ctmp_msg *msg);

@@ -1,3 +1,5 @@
+/// @file
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -37,7 +39,8 @@ void *dst_server(void *data)
 		new_fd = server_accept(dst_server->fd, dst_server->addr);
 		if (new_fd < 0) {
 			pr_err("error accepting connection to port %d\n", DST_PORT);
-			/* TODO exit? */
+			/* retry */
+			continue;
 		}
 
 		new_entry = malloc(sizeof(struct client_entry));

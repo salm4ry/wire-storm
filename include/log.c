@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-/* TODO message prefixes */
 
 /**
  * @brief Print error message to stderr
@@ -20,6 +19,7 @@ void pr_err(char *fmt, ...)
 
 /**
  * @brief Print debug message
+ * @details Only runs when compiled with `-DDEBUG`
  * @param fmt format string
  * @param ... format arguments
  */
@@ -34,16 +34,3 @@ void pr_err(char *fmt, ...)
 #else
 	void pr_debug(char *fmt, ...) { }
 #endif
-
-/**
- * @brief Print info message
- * @param fmt format string
- * @param ... format arguments
- */
-void pr_info(char *fmt, ...)
-{
-	va_list args;
-	va_start(args, fmt);
-	vprintf(fmt, args);
-	va_end(args);
-}

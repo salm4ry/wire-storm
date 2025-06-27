@@ -18,7 +18,7 @@
 /**
  * @brief Set up socket server address
  * @param port server port
- * @return sockaddr_in object describing the socket server address
+ * @return `sockaddr_in` describing the socket server address
  */
 struct sockaddr_in server_address(int port)
 {
@@ -34,10 +34,9 @@ struct sockaddr_in server_address(int port)
 /**
  * @brief Create socket server listening on a given port
  * @param port TCP port to listen on
- * @return pointer to struct server_socket (including file descriptor) on
+ * @return pointer to `struct server_socket` (including file descriptor) on
  * success, NULL on error
  */
-
 struct server_socket *server_create(int port)
 {
 	int opt = 1;
@@ -89,31 +88,18 @@ cleanup:
  * @brief Accept connection to a given socket server
  * @param server_fd server file descriptor
  * @param address server address
- * @return new socket file descriptor on success, -1 on error (return value of
- * accept())
+ * @return new socket file descriptor on success, negative value on error
+ * (errno returned by the call to `accept()`)
  */
 int server_accept(int server_fd, struct sockaddr_in address)
 {
 	int new_socket;
 	socklen_t addrlen = sizeof(address);
 
-	if ((new_socket = accept(server_fd, (struct sockaddr *) &address, &addrlen)) < 0) {
+	if ((new_socket = accept(server_fd, (struct sockaddr *) &address, &addrlen)) == -1) {
 		perror("accept");
+		/* check if we should retry */
 		return -errno;
-	}
-
-	return new_socket;
-}
-
-int init_receiver(struct server_socket *server)
-{
-	/* accept new connection */
-	int new_socket;
-
-	new_socket = server_accept(server->fd, server->addr);
-	if (new_socket > 0) {
-		/* TODO create new thread- look at OSSP serverThreaded example
-		 * to see how to make a new thread per client */
 	}
 
 	return new_socket;

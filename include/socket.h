@@ -2,9 +2,9 @@
 
 #include <netinet/in.h>
 
-#define SRC_PORT 33333
-#define DST_PORT 44444
-#define BACKLOG 3
+#define SRC_PORT 33333  ///< source server port
+#define DST_PORT 44444  ///< destination server port
+#define BACKLOG 3  ///< max pending connection queue length for listen()
 
 /**
  * @struct server_socket
