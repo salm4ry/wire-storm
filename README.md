@@ -33,6 +33,8 @@ Environment variables:
     - [ ] invalid length
     - [ ] invalid padding
     - [ ] messages in correct order
+    - [ ] between VMs
+- [ ] performance analysis (`perf` etc.)
 - [ ] Wire Storm Reloaded
     - [ ] updated header parsing (checksum calculation + validation)
     - [ ] log errors on invalid checksum
