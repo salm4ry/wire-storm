@@ -5,6 +5,18 @@
 
 #define MAGIC 0xcc
 #define HEADER_LENGTH 8  ///< CTMP header length
+#define PADDING 0x00
+#define NUM_PADDING_BYTES 5  ///< number of padding bytes in base CTMP
+
+#define LENGTH_POS 2 ///< first byte of message length: 2 bytes long
+#define OPTIONS_POS 1  ///< options = first byte of header in extended version
+#define CHECKSUM_POS 4  ///< first byte of checksum: 2 bytes long
+
+#define PADDING_START 4  ///< start of base CTMP padding (excluding byte 1)
+#define PADDING_END 7  ///< end of base CTMP padding (excluding byte 1)
+
+#define EXT_PADDING_START 2  ///< start of extended CTMP padding
+#define EXT_PADDING_END 3  ///< end of extended CTMP padding
 
 #define OPT_NORM 0x00
 #define OPT_SEN 0x40

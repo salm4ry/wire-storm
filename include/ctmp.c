@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdint.h>
@@ -17,6 +18,128 @@
  * with an excessive length must be dropped
  * -> TODO define "excessive length"
  */
+
+/**
+ * @brief Read in CTMP header
+ * @param sender_fd file descriptor to read header from
+ * @param msg `struct ctmp_msg` to store header in
+ * @return number of bytes read (negative error code on failure)
+ */
+int read_header(int sender_fd, struct ctmp_msg *msg)
+{
+	int bytes_read = 0;
+
+	/* read in header */
+	bytes_read = read(sender_fd, msg->header, HEADER_LENGTH);
+	if (bytes_read < 0) {
+		bytes_read = -errno;
+	}
+
+	return bytes_read;
+}
+
+/**
+ * @brief Validate CTMP header magic byte
+ * @param msg message to validate magic byte of
+ * @return true if valid magic byte, false otherwise
+ */
+bool valid_magic(struct ctmp_msg *msg)
+{
+	return (msg->header[0] == MAGIC);
+}
+
+/**
+ * @brief Validate CTMP header padding
+ * @details Header bytes 1 and 4-7 should contain 0x00
+ * @param msg message to validate padding of
+ * @param extended whether extended mode is enabled
+ * @return true if valid padding, false otherwise
+ */
+bool valid_padding(struct ctmp_msg *msg, bool extended)
+{
+	int start, end;
+
+	/* set padding start and end depending on protocol version */
+	if (extended) {
+		start = EXT_PADDING_START;
+		end = EXT_PADDING_END;
+	} else {
+		start = PADDING_START;
+		end = PADDING_END;
+
+		/* only check options byte if not in extended mode */
+		if ((msg->header[OPTIONS_POS] & PADDING) != 0) {
+			return false;
+		}
+	}
+
+	for (int i = start; i <= end; i++) {
+		if ((msg->header[i] & PADDING) != 0) {
+			return false;
+		}
+	}
+
+	if (!extended) {
+		if ((msg->header[OPTIONS_POS] & PADDING) != 0) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * @brief Set CTMP message length
+ * @details Message length is stored in header bytes 2 and 3 as an unsigned
+ * 16-bit network-order integer
+ * @param msg `struct ctmp_msg` to set length of
+ */
+void set_msg_length(struct ctmp_msg *msg)
+{
+	/* length = header bytes 2 and 3 */
+	msg->len = (msg->header[LENGTH_POS+1] << 8) + msg->header[LENGTH_POS];
+	/* convert from network to host order */
+	msg->len = ntohs(msg->len);
+}
+
+/**
+ * @brief Read CTMP data based on header information
+ * @param sender_fd file descriptor to read data from
+ * @param msg `struct ctmp_msg` to store data in
+ * @return number of bytes read (negative error code on failure)
+ */
+int read_data(int sender_fd, struct ctmp_msg *msg)
+{
+	int bytes_read = 0;
+
+	msg->data = malloc((msg->len+1) * sizeof(unsigned char));
+	if (!msg->data) {
+		perror("malloc");
+		exit(errno);
+	}
+
+	/* explicitly set last byte to NULL terminator before reading in message */
+	msg->data[msg->len] = '\0';
+
+	bytes_read = read(sender_fd, msg->data, msg->len);
+	if (bytes_read < 0) {
+		perror("read");
+		bytes_read = -errno;
+		goto out;
+	}
+
+	/* determine whether the message has the correct length value set */
+	pr_debug("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
+	if (bytes_read != msg->len) {
+		/* length does not match */
+		pr_err("invalid message: bytes read %u does not match length %u\n",
+				bytes_read, msg->len);
+		bytes_read = -1;
+	}
+
+out:
+	return bytes_read;
+}
 
 /**
  * @brief Free a given `struct ctmp_msg` object
@@ -40,8 +163,6 @@ void free_ctmp_msg(struct ctmp_msg *msg)
  */
 struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 {
-	/* TODO check correct padding */
-
 	int bytes_read = 0;
 	struct ctmp_msg *msg = NULL;
 
@@ -50,53 +171,46 @@ struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 		perror("malloc");
 		exit(errno);
 	}
+	msg->data = NULL;
 
 	/* read in header */
-	bytes_read = read(sender_fd, msg->header, HEADER_LENGTH);
+	bytes_read = read_header(sender_fd, msg);
 	if (bytes_read < 0) {
 		/* read failed */
 		perror("read");
+		free_ctmp_msg(msg);
+		msg = NULL;
 		goto out;
 	} else if (bytes_read == 0) {
 		/* no data sent */
-		free(msg);
+		free_ctmp_msg(msg);
 		msg = NULL;
 		goto out;
 	}
 
 	/* validate magic byte (first byte of header) */
-	if (msg->header[0] != MAGIC) {
-		pr_err("invalid message: magic byte check failed (found 0x%02x)\n", msg->header[0]);
-		free(msg);
+	if (!valid_magic(msg)) {
+		pr_err("invalid message: magic byte check failed (found 0x%02x)\n",
+				msg->header[0]);
+		free_ctmp_msg(msg);
 		msg = NULL;
 		goto out;
 	}
 
-	msg->data = NULL;
-
-	/* length = header bytes 2 and 3 */
-	msg->len = (msg->header[3] << 8) + msg->header[2];
-	/* convert to host byte order */
-	msg->len = ntohs(msg->len);
-
-	/* read in rest of message, allocating buffer with chosen length
-	 * +1 for NULL terminator */
-	msg->data = malloc((msg->len+1) * sizeof(unsigned char));
-	if (!msg->data) {
-		perror("malloc");
-		exit(errno);
+	/* check padding (byte numbers specified in PADDING_BYTES) is correctly
+	 * set to 0x00s */
+	if (!valid_padding(msg, false)) {
+		pr_err("invalid message: incorrect padding\n");
 	}
 
-	/* explicitly set last byte to NULL terminator before reading in message */
-	msg->data[msg->len] = '\0';
-	bytes_read = read(sender_fd, msg->data, msg->len);
+	/* get message length from header */
+	set_msg_length(msg);
+
+	bytes_read = read_data(sender_fd, msg);
 
 	/* determine whether the message has the correct length value set */
 	pr_debug("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
-	if (bytes_read != msg->len) {
-		/* length does not match */
-		pr_err("invalid message: bytes read %u does not match length %u\n",
-				bytes_read, msg->len);
+	if (bytes_read < 0) {
 		free_ctmp_msg(msg);
 		msg = NULL;
 	}
@@ -151,8 +265,8 @@ uint16_t calc_checksum(struct ctmp_msg *msg)
 	 */
 
 	/* fill checksum field (bytes 4 and 5) with 0xCC */
-	header[4] = 0xCC;
-	header[5] = 0xCC;
+	header[CHECKSUM_POS] = 0xCC;
+	header[CHECKSUM_POS+1] = 0xCC;
 
 	addr = (uint16_t *) header;
 	/* header portion */
@@ -173,7 +287,7 @@ uint16_t calc_checksum(struct ctmp_msg *msg)
 		sum += * (uint8_t *) addr;
 	}
 
-	/* fold to 16 bits (TODO better explanation) */
+	/* fold to 16 bits by adding 16-bit segments */
 	while (sum >> 16)
 		sum = (sum & 0xffff) + (sum >> 16);
 
@@ -191,12 +305,6 @@ uint16_t calc_checksum(struct ctmp_msg *msg)
  */
 struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 {
-	/* TODO for messages where the sensitive options bit is 1, the checksum
-	 * must be calculated and validated
-	 *
-	 * Any message with an invalid checksum must be dropped with an error
-	 * logged
-	 */
 	int bytes_read = 0;
 	struct ctmp_msg *msg = NULL;
 	uint16_t header_checksum, calculated_checksum;
@@ -206,62 +314,50 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 		perror("malloc");
 		exit(errno);
 	}
+	msg->data = NULL;
 
 	/* read in header */
-	bytes_read = read(sender_fd, msg->header, HEADER_LENGTH);
+	bytes_read = read_header(sender_fd, msg);
 	if (bytes_read < 0) {
 		/* read failed */
 		perror("read");
+		free_ctmp_msg(msg);
+		msg = NULL;
 		goto out;
 	} else if (bytes_read == 0) {
 		/* no data sent */
-		free(msg);
+		free_ctmp_msg(msg);
 		msg = NULL;
 		goto out;
 	}
 
 	/* validate magic byte (first byte of header) */
-	if (msg->header[0] != MAGIC) {
+	if (!valid_magic(msg)) {
 		pr_err("invalid message: magic byte check failed (found 0x%02x)\n", msg->header[0]);
 		free(msg);
 		msg = NULL;
 		goto out;
 	}
 
-	msg->data = NULL;
-
-	/* length = header bytes 2 and 3 */
-	msg->len = (msg->header[3] << 8) + msg->header[2];
-	/* convert to host byte order */
-	msg->len = ntohs(msg->len);
-
-	/* read in rest of message, allocating buffer with chosen length
-	 * +1 for NULL terminator */
-	msg->data = malloc((msg->len+1) * sizeof(unsigned char));
-	if (!msg->data) {
-		perror("malloc");
-		exit(errno);
+	/* check padding (byte numbers specified in PADDING_BYTES) is correctly
+	 * set to 0x00s */
+	if (!valid_padding(msg, true)) {
+		pr_err("invalid message: incorrect padding\n");
 	}
 
-	/* explicitly set last byte to NULL terminator before reading in message */
-	msg->data[msg->len] = '\0';
-	bytes_read = read(sender_fd, msg->data, msg->len);
+	set_msg_length(msg);
 
-	/* determine whether the message has the correct length value set */
-	pr_debug("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
-	if (bytes_read != msg->len) {
-		/* length does not match */
-		pr_err("invalid message: bytes read %u does not match length %u\n",
-				bytes_read, msg->len);
+	bytes_read = read_data(sender_fd, msg);
+	if (bytes_read < 0) {
 		free_ctmp_msg(msg);
 		msg = NULL;
 		goto out;
 	}
 
-	/* check options (byte 1) */
-	if ((msg->header[1] ^ OPT_SEN) == 0) {
+	/* check options */
+	if (msg->header[OPTIONS_POS] == OPT_SEN) {
 		/* validate checksum */
-		header_checksum = (msg->header[5] << 8) + msg->header[4];
+		header_checksum = (msg->header[CHECKSUM_POS+1] << 8) + msg->header[CHECKSUM_POS];
 		calculated_checksum = calc_checksum(msg);
 		pr_debug("checksum in header: %u, calculated: %u\n", header_checksum, calculated_checksum);
 
@@ -270,8 +366,8 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 			free_ctmp_msg(msg);
 			msg = NULL;
 		}
-	} else if ((msg->header[1] ^ OPT_NORM) != 0) {
-		pr_err("invalid options (0%02x)\n", msg->header[1]);
+	} else if (msg->header[OPTIONS_POS] != OPT_NORM) {
+		pr_err("invalid options (0x%02x)\n", msg->header[1]);
 	}
 
 out:
