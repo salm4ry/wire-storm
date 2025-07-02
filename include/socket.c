@@ -80,6 +80,7 @@ struct server_socket *server_create(int port)
 	return server;
 
 cleanup:
+	close(server->fd);
 	free(server);
 	return NULL;
 }
