@@ -24,6 +24,7 @@ Environment variables:
 - [x] compilation with `-DDEBUG`
 - [x] documentation with `doxygen`
     - [x] update for new functions
+    - [ ] make `index.html` show relevant files/repository README (currently blank)
 - [ ] define "excessive length"
 - [x] finalise error handling
 - [x] receiver server
@@ -35,6 +36,6 @@ Environment variables:
     - [ ] messages in correct order
     - [ ] between VMs
 - [ ] performance analysis (`perf` etc.)
-- [ ] Wire Storm Reloaded
-    - [ ] updated header parsing (checksum calculation + validation)
-    - [ ] log errors on invalid checksum
+- [x] Wire Storm Reloaded
+    - [x] updated header parsing (checksum calculation + validation)
+    - [x] log errors on invalid checksum
