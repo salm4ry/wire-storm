@@ -1,8 +1,14 @@
+/// @file
+
 #include <stdio.h>
 #include <libgen.h>
 
 #include "args.h"
 
+/**
+ * @brief Print program usage
+ * @param prog_name name of executable (`argv[0]`)
+ */
 void usage(char *prog_name)
 {
 	printf("usage: %s [OPTIONS]\n"
@@ -10,11 +16,21 @@ void usage(char *prog_name)
 	       "-h, --help: print this message and exit\n", basename(prog_name));
 }
 
+/**
+ * @brief Set default command-line argument values
+ * @param args argument structure to set values of
+ */
 void set_default_args(struct args *args)
 {
 	args->extended = false;
 }
 
+/**
+ * @brief Parse command-line arguments
+ * @param argc argument count
+ * @param argv argument vector
+ * @param args argument structure to store results
+ */
 void parse_args(int argc, char *argv[], struct args *args)
 {
 	int opt = 0, option_index = 0;
