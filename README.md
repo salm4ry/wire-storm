@@ -6,7 +6,7 @@
 make
 ```
 
-Environment variables:
+### Environment Variables
 
 | variable | `=1` |
 | -- | -- |
@@ -20,6 +20,13 @@ Environment variables:
 ./server
 ```
 
+### Usage
+
+`./server [OPTIONS]`
+
+- `-e, --extended`: use extended CTMP
+- `-h, --help`: print usage and exit
+
 ## To Do
 - [x] compilation with `-DDEBUG`
 - [x] documentation with `doxygen`
@@ -30,6 +37,7 @@ Environment variables:
 - [x] receiver server
     - [x] forward valid messages
     - [x] handle multiple clients
+- [x] command-line argument to choose base/extended CTMP at startup
 - [ ] own test cases
     - [ ] invalid length
     - [ ] invalid padding

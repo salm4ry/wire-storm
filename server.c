@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <sys/queue.h>
 
+#include "include/args.h"
 #include "include/log.h"
 #include "include/socket.h"
 #include "include/ctmp.h"
@@ -23,6 +24,7 @@ TAILQ_HEAD(client_list, client_entry);  ///< define client_list as a doubly link
 pthread_mutex_t client_lock = PTHREAD_MUTEX_INITIALIZER;
 struct client_list client_queue_head;
 
+struct args init_args;
 
 /**
  * @brief Broadcast a CTMP message to all connected receivers
@@ -69,11 +71,19 @@ void src_server()
 	int src_socket;
 	struct server_socket *src_server = NULL;
 	struct ctmp_msg *current_msg = NULL;
+	struct ctmp_msg *(*parse_func)(int) = NULL;   ///< CTMP message parsing function
 
 	src_server = server_create(SRC_PORT);
 	if (!src_server) {
 		pr_err("error setting up server on port %d\n", SRC_PORT);
 		exit(EXIT_FAILURE);
+	}
+
+	/* check which protocol version to use */
+	if (init_args.extended) {
+		parse_func = &parse_ctmp_msg_extended;
+	} else {
+		parse_func = &parse_ctmp_msg;
 	}
 
 	while (1) {
@@ -92,7 +102,7 @@ void src_server()
 		 * MSG_DONTWAIT: enable nonblocking */
 		while (recv(src_socket, &test_buffer, sizeof(test_buffer),
 					MSG_PEEK | MSG_DONTWAIT) != 0) {
-			current_msg = parse_ctmp_msg(src_socket);
+			current_msg = parse_func(src_socket);
 			if (current_msg) {
 				broadcast(current_msg);
 				free_ctmp_msg(current_msg);
@@ -151,6 +161,10 @@ int main(int argc, char *argv[])
 {
 	int res;
 	pthread_t dst_server_thread;
+
+	/* parse command-line arguments */
+	parse_args(argc, argv, &init_args);
+	pr_debug("extended = %d\n", init_args.extended);
 
 	/* initialise client queue */
 	TAILQ_INIT(&client_queue_head);
