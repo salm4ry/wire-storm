@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define MAGIC 0xcc
+#define MAGIC 0xcc  ///< CTMP header magic byte
 #define HEADER_LENGTH 8  ///< CTMP header length
-#define PADDING 0x00
+#define PADDING 0x00  ///< CTMP header padding byte
 #define NUM_PADDING_BYTES 5  ///< number of padding bytes in base CTMP
 
 #define LENGTH_POS 2 ///< first byte of message length: 2 bytes long
@@ -18,8 +18,8 @@
 #define EXT_PADDING_START 2  ///< start of extended CTMP padding
 #define EXT_PADDING_END 3  ///< end of extended CTMP padding
 
-#define OPT_NORM 0x00
-#define OPT_SEN 0x40
+#define OPT_NORM 0x00  ///< extended CTMP "NORMAL" option
+#define OPT_SEN 0x40  ///< extended CTMP "SEN" (sensitive) option
 
 /**
  * @brief CTMP message
@@ -31,10 +31,13 @@ struct ctmp_msg
 	unsigned char *data;  ///< data following header
 };
 
+int read_msg(int fd, unsigned char *buf, uint16_t len);
+int send_msg(int fd, unsigned char *buf, uint16_t len);
+
 void free_ctmp_msg(struct ctmp_msg *msg);
 struct ctmp_msg *parse_ctmp_msg(int sender_fd);
 ssize_t send_ctmp_msg(int receiver_fd, struct ctmp_msg *msg);
 
-/* Wire Storm Reloaded */
+/* Wire Storm Reloaded (extended CTMP) */
 uint16_t calc_checksum(struct ctmp_msg *msg);
 struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd);

@@ -32,7 +32,8 @@ make
 - [x] documentation with `doxygen`
     - [x] update for new functions
     - [ ] make `index.html` show relevant files/repository README (currently blank)
-- [ ] define "excessive length"
+- [x] make sure messages are of the correct length
+- [ ] prefix log messages with timestamp
 - [x] finalise error handling
 - [x] receiver server
     - [x] forward valid messages
@@ -42,7 +43,8 @@ make
     - [ ] invalid length
     - [ ] invalid padding
     - [ ] messages in correct order
-    - [ ] between VMs
+    - [x] between VMs
+    - [ ] between physical machines
 - [ ] performance analysis (`perf` etc.)
 - [x] Wire Storm Reloaded
     - [x] updated header parsing (checksum calculation + validation)

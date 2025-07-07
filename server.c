@@ -52,8 +52,12 @@ void broadcast(struct ctmp_msg *msg)
 		pthread_mutex_unlock(&client_lock);
 
 		if (!current->open) {
+			pr_debug("removing receiver connection (fd %d)\n",
+					current->fd);
 			close(current->fd);
+			pthread_mutex_lock(&client_lock);
 			TAILQ_REMOVE(&client_queue_head, current, entries);
+			pthread_mutex_unlock(&client_lock);
 			free(current);
 		}
 
@@ -147,6 +151,7 @@ void *dst_server()
 
 		new_entry->fd = new_fd;
 		new_entry->open = true;
+		pr_debug("adding receiver connection (fd %d)\n", new_entry->fd);
 		pthread_mutex_lock(&client_lock);
 		TAILQ_INSERT_TAIL(&client_queue_head, new_entry, entries);
 		pthread_mutex_unlock(&client_lock);

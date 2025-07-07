@@ -13,11 +13,102 @@
 #include "ctmp.h"
 #include "log.h"
 
-/*
- * Validate the magic and length of the data before forwarding. Any messages
- * with an excessive length must be dropped
- * -> TODO define "excessive length"
+/**
+ * @brief Read a message of a given length from a given file descriptor
+ * @param fd file descriptor to read from
+ * @param buf buffer to store message in
+ * @param len length of message to be read in bytes
+ * @return 0 on success, negative error code otherwise
+ *
+ * @details Continue reading until there is nothing left to read or the expected
+ * length has been read.
+ *
+ * Return values:
+ * - 0: correct number of bytes (= `len`) read
+ * - -1: mismatch between expected and actual number of bytes read
+ * - other negative error code: `read()` failure
  */
+int read_msg(int fd, unsigned char *buf, uint16_t len)
+{
+	ssize_t bytes_read = 0, total_bytes_read = 0;
+
+	do {
+		bytes_read = read(fd, &buf[total_bytes_read],
+				len - total_bytes_read);
+		if (bytes_read < 0) {
+			/* check if we should retry the read */
+			if (errno == EINTR) {
+				/* interrupted by syscall: retry */
+				continue;
+			} else {
+				perror("read");
+				return -errno;
+			}
+		} else if (bytes_read == 0) {
+			break;
+		}
+		total_bytes_read += bytes_read;
+		pr_debug("read %d, total %d, expected %d\n",
+				bytes_read, total_bytes_read, len);
+	} while (total_bytes_read < len);
+
+	if (total_bytes_read == 0) {
+		pr_debug("nothing to read\n");
+		return -1;
+	}
+
+	if (total_bytes_read == len) {
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
+/**
+ * @brief Send a message of a given length to a given file descriptor
+ * @param fd file descriptor to send to
+ * @param buf data to send
+ * @param len length of data to send in bytes
+ * @return 0 on success, negative error code otherwise
+ *
+ * @details Continue sending until the full message has been sent/send fails.
+ *
+ * Return values:
+ * - 0: correct number of bytes = (`len`) sent
+ * - -1: mismatch between expected and actual number of bytes sent
+ * - other negative error code: `send()` failure
+ */
+int send_msg(int fd, unsigned char *buf, uint16_t len)
+{
+	ssize_t bytes_sent = 0, total_bytes_sent = 0;
+
+	do {
+		/* MSG_NOSIGNAL: don't generate SIGIPE if the socket has closed
+		 * the connection (errno still set to EPIPE) */
+		bytes_sent = send(fd, &buf[total_bytes_sent],
+				len - total_bytes_sent, MSG_NOSIGNAL);
+		if (bytes_sent < 0) {
+			/* check if we should retry */
+			if (errno == EINTR) {
+				/* interrupted by syscall: retry */
+				continue;
+			} else {
+				return -errno;
+			}
+		} else if (bytes_sent == 0) {
+			break;
+		}
+		total_bytes_sent += bytes_sent;
+		pr_debug("sent %d, total %d, expected %d\n",
+				bytes_sent, total_bytes_sent, len);
+	} while (total_bytes_sent < len);
+
+	if (total_bytes_sent == len) {
+		return 0;
+	} else {
+		return -1;
+	}
+}
 
 /**
  * @brief Read in CTMP header
@@ -25,17 +116,10 @@
  * @param msg `struct ctmp_msg` to store header in
  * @return number of bytes read (negative error code on failure)
  */
-int read_header(int sender_fd, struct ctmp_msg *msg)
+int read_ctmp_header(int sender_fd, struct ctmp_msg *msg)
 {
-	int bytes_read = 0;
-
 	/* read in header */
-	bytes_read = read(sender_fd, msg->header, HEADER_LENGTH);
-	if (bytes_read < 0) {
-		bytes_read = -errno;
-	}
-
-	return bytes_read;
+	return read_msg(sender_fd, msg->header, HEADER_LENGTH);
 }
 
 /**
@@ -108,7 +192,7 @@ void set_msg_length(struct ctmp_msg *msg)
  * @param msg `struct ctmp_msg` to store data in
  * @return number of bytes read (negative error code on failure)
  */
-int read_data(int sender_fd, struct ctmp_msg *msg)
+int read_ctmp_data(int sender_fd, struct ctmp_msg *msg)
 {
 	int bytes_read = 0;
 
@@ -121,23 +205,7 @@ int read_data(int sender_fd, struct ctmp_msg *msg)
 	/* explicitly set last byte to NULL terminator before reading in message */
 	msg->data[msg->len] = '\0';
 
-	bytes_read = read(sender_fd, msg->data, msg->len);
-	if (bytes_read < 0) {
-		perror("read");
-		bytes_read = -errno;
-		goto out;
-	}
-
-	/* determine whether the message has the correct length value set */
-	pr_debug("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
-	if (bytes_read != msg->len) {
-		/* length does not match */
-		pr_err("invalid message: bytes read %u does not match length %u\n",
-				bytes_read, msg->len);
-		bytes_read = -1;
-	}
-
-out:
+	bytes_read = read_msg(sender_fd, msg->data, msg->len);
 	return bytes_read;
 }
 
@@ -163,7 +231,7 @@ void free_ctmp_msg(struct ctmp_msg *msg)
  */
 struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 {
-	int bytes_read = 0;
+	int res = 0;
 	struct ctmp_msg *msg = NULL;
 
 	msg = malloc(sizeof(struct ctmp_msg));
@@ -174,15 +242,8 @@ struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 	msg->data = NULL;
 
 	/* read in header */
-	bytes_read = read_header(sender_fd, msg);
-	if (bytes_read < 0) {
-		/* read failed */
-		perror("read");
-		free_ctmp_msg(msg);
-		msg = NULL;
-		goto out;
-	} else if (bytes_read == 0) {
-		/* no data sent */
+	res = read_ctmp_header(sender_fd, msg);
+	if (res < 0) {
 		free_ctmp_msg(msg);
 		msg = NULL;
 		goto out;
@@ -197,8 +258,7 @@ struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 		goto out;
 	}
 
-	/* check padding (byte numbers specified in PADDING_BYTES) is correctly
-	 * set to 0x00s */
+	/* check padding correctly set to 0x00s */
 	if (!valid_padding(msg, false)) {
 		pr_err("invalid message: incorrect padding\n");
 	}
@@ -206,11 +266,8 @@ struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 	/* get message length from header */
 	set_msg_length(msg);
 
-	bytes_read = read_data(sender_fd, msg);
-
-	/* determine whether the message has the correct length value set */
-	pr_debug("length from header: %u, bytes read: %u\n", msg->len, bytes_read);
-	if (bytes_read < 0) {
+	res = read_ctmp_data(sender_fd, msg);
+	if (res < 0) {
 		free_ctmp_msg(msg);
 		msg = NULL;
 	}
@@ -228,18 +285,18 @@ out:
  */
 ssize_t send_ctmp_msg(int receiver_fd, struct ctmp_msg *msg)
 {
-	ssize_t bytes_sent = 0;
+	int res = 0;
 
 	/* send header */
-	bytes_sent = send(receiver_fd, msg->header, HEADER_LENGTH, MSG_NOSIGNAL);
-	if (bytes_sent < 0) {
+	res = send_msg(receiver_fd, msg->header, HEADER_LENGTH);
+	if (res < 0) {
 		goto out;
 	}
 
-	bytes_sent = send(receiver_fd, msg->data, msg->len, MSG_NOSIGNAL);
+	res = send_msg(receiver_fd, msg->data, msg->len);
 
 out:
-	return bytes_sent;
+	return res;
 }
 
 /**
@@ -305,7 +362,7 @@ uint16_t calc_checksum(struct ctmp_msg *msg)
  */
 struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 {
-	int bytes_read = 0;
+	int res = 0;
 	struct ctmp_msg *msg = NULL;
 	uint16_t header_checksum, calculated_checksum;
 
@@ -317,15 +374,9 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 	msg->data = NULL;
 
 	/* read in header */
-	bytes_read = read_header(sender_fd, msg);
-	if (bytes_read < 0) {
+	res = read_ctmp_header(sender_fd, msg);
+	if (res < 0) {
 		/* read failed */
-		perror("read");
-		free_ctmp_msg(msg);
-		msg = NULL;
-		goto out;
-	} else if (bytes_read == 0) {
-		/* no data sent */
 		free_ctmp_msg(msg);
 		msg = NULL;
 		goto out;
@@ -339,16 +390,15 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 		goto out;
 	}
 
-	/* check padding (byte numbers specified in PADDING_BYTES) is correctly
-	 * set to 0x00s */
+	/* check padding correctly set to 0x00s */
 	if (!valid_padding(msg, true)) {
 		pr_err("invalid message: incorrect padding\n");
 	}
 
 	set_msg_length(msg);
 
-	bytes_read = read_data(sender_fd, msg);
-	if (bytes_read < 0) {
+	res = read_ctmp_data(sender_fd, msg);
+	if (res < 0) {
 		free_ctmp_msg(msg);
 		msg = NULL;
 		goto out;
@@ -362,7 +412,8 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 		pr_debug("checksum in header: %u, calculated: %u\n", header_checksum, calculated_checksum);
 
 		if (header_checksum != calculated_checksum) {
-			pr_err("invalid message: checksum validation failed (found %u, expected %u)\n");
+			pr_err("invalid message: checksum validation failed (found %u, expected %u)\n",
+					calculated_checksum, header_checksum);
 			free_ctmp_msg(msg);
 			msg = NULL;
 		}
