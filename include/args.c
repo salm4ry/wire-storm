@@ -5,6 +5,19 @@
 
 #include "args.h"
 
+static char *short_opts = "eh";  ///< short option characters
+
+/**
+ * @brief Long options
+ * @details Each option defined as: `{const char *name, int has_arg, int *flag, int val}`
+ */
+static struct option long_opts[]  = {
+	{"help", no_argument, NULL, 'h'},
+	{"extended", no_argument, NULL, 'e'},
+	/* terminate option list with zeroed-struct */
+	{NULL, 0, NULL, 0}
+};
+
 /**
  * @brief Print program usage
  * @param prog_name name of executable (`argv[0]`)
