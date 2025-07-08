@@ -45,6 +45,7 @@ make
     - [ ] messages in correct order
     - [x] between VMs
     - [ ] between physical machines
+- [ ] fix race between adding receivers and sending a message: make sure receivers get the most recent message if it was sent *before* they were accepted
 - [ ] performance analysis (`perf` etc.)
 - [x] Wire Storm Reloaded
     - [x] updated header parsing (checksum calculation + validation)
