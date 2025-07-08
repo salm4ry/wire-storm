@@ -31,7 +31,7 @@ make
 - [x] compilation with `-DDEBUG`
 - [x] documentation with `doxygen`
     - [x] update for new functions
-    - [ ] make `index.html` show relevant files/repository README (currently blank)
+    - [x] make `index.html` show relevant files/repository README (currently blank)
 - [x] make sure messages are of the correct length
 - [ ] prefix log messages with timestamp
 - [x] finalise error handling
