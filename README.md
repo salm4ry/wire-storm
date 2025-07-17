@@ -46,6 +46,8 @@ make
     - [x] between VMs
     - [ ] between physical machines
 - [ ] fix race between adding receivers and sending a message: make sure receivers get the most recent message if it was sent *before* they were accepted
+    - [x] create dedicated broadcast thread
+    - [ ] allow for grace period between receipt of message from sender and broadcasting to receivers (account for late receivers)
 - [ ] performance analysis (`perf` etc.)
 - [x] Wire Storm Reloaded
     - [x] updated header parsing (checksum calculation + validation)
