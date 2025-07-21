@@ -183,6 +183,11 @@ void *dst_server()
 	return NULL;
 }
 
+/**
+ * @brief Run broadcast worker
+ * @details Wait for messages to enter the queue and broadcast them to all
+ * currently connected receivers
+ */
 void *bcast_work()
 {
 	struct msg_entry *current = NULL;
@@ -198,7 +203,11 @@ void *bcast_work()
 		TAILQ_REMOVE(&msg_queue_head, current, entries);
 		pthread_mutex_unlock(&msg_lock);
 
-		/* TODO grace period to allow for new receivers */
+		/*
+		 * race between new receiver & broadcast still observed with
+		 * third thread
+		 * -> TODO fix by adding grace period to allow for new receivers
+		 */
 
 		/* broadcast message */
 		broadcast(current->msg);
