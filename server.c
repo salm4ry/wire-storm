@@ -14,14 +14,10 @@
 #include "include/socket.h"
 #include "include/ctmp.h"
 
-struct client_entry {
-	int fd;  ///< socket file descriptor
-	bool open;  ///< is the connection open?
-	TAILQ_ENTRY(client_entry) entries;  ///< prev + next pointers for client queue
-};
-TAILQ_HEAD(client_queue, client_entry);  ///< define client_queue as a doubly linked tail queue
-pthread_mutex_t client_lock = PTHREAD_MUTEX_INITIALIZER;
-struct client_queue client_queue_head;
+#include "include/thread.h"
+
+struct worker *client_workers = NULL;
+int num_workers = 30; /* TODO configurable */
 
 struct msg_entry {
 	struct ctmp_msg *msg;  ///< CTMP message structure to broadcast
@@ -34,44 +30,15 @@ struct msg_queue msg_queue_head;
 
 struct args init_args;
 
-/**
- * @brief Broadcast a CTMP message to all connected receivers
- * @details Send a given message to all receivers in the client queue, removing
- * entries relating to closed connections
- * @param msg message to broadcast
+/*
+ * TODO
+ * - when accepting a new receiver, wait until a thread becomes available if
+ *   there aren't any available
+ * - store bitmask of fds a given message has been sent to to avoid resending
+ *   messages
+ * - delete messages after the (configurable) grace period has passed
+ * - configure maximum number of worker threads
  */
-void broadcast(struct ctmp_msg *msg)
-{
-	struct client_entry *current = NULL, *next = NULL;
-	ssize_t bytes_sent = 0;
-
-	pthread_mutex_lock(&client_lock);
-	current = TAILQ_FIRST(&client_queue_head);
-	pthread_mutex_unlock(&client_lock);
-
-	while (current) {
-		bytes_sent = send_ctmp_msg(current->fd, msg);
-		if (bytes_sent < 0) {
-			current->open = false;
-		}
-
-		pthread_mutex_lock(&client_lock);
-		next = TAILQ_NEXT(current, entries);
-		pthread_mutex_unlock(&client_lock);
-
-		if (!current->open) {
-			pr_debug("removing receiver connection (fd %d)\n",
-					current->fd);
-			close(current->fd);
-			pthread_mutex_lock(&client_lock);
-			TAILQ_REMOVE(&client_queue_head, current, entries);
-			pthread_mutex_unlock(&client_lock);
-			free(current);
-		}
-
-		current = next;
-	}
-}
 
 /**
  * @brief Run source server
@@ -128,8 +95,10 @@ void src_server()
 				pthread_mutex_lock(&msg_lock);
 				/* add message to queue */
 				TAILQ_INSERT_TAIL(&msg_queue_head, new_msg_entry, entries);
-				/* signal that there is a message to broadcast */
-				pthread_cond_signal(&msg_cond);
+
+				/* signal that the message queue is non-empty
+				 * (broadcast signal to all waiting threads) */
+				pthread_cond_broadcast(&msg_cond);
 				pthread_mutex_unlock(&msg_lock);
 			}
 		}
@@ -139,6 +108,44 @@ void src_server()
 	}
 }
 
+void *dst_worker(void *data)
+{
+	struct msg_entry *current = NULL;
+	ssize_t bytes_sent = 0;
+	struct worker_args *args = (struct worker_args *) data;
+
+	while (1) {
+		if (TAILQ_EMPTY(&msg_queue_head)) {
+			pthread_mutex_lock(&msg_lock);
+			while (TAILQ_EMPTY(&msg_queue_head)) {
+				pthread_cond_wait(&msg_cond, &msg_lock);
+			}
+
+			/* get first entry */
+			current = TAILQ_FIRST(&msg_queue_head);
+			pthread_mutex_unlock(&msg_lock);
+		}
+
+		/* read file descriptor */
+		bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
+
+		/* get next message */
+		current = TAILQ_NEXT(current, entries);
+
+		if (bytes_sent < 0) {
+			/* send failed, wait for new fd */
+			pthread_mutex_lock(&args->lock);
+			pthread_cond_wait(&args->cond, &args->lock);
+			/* update thread status */
+			*(args->status) = THREAD_READY;
+			pr_debug("updated status\n");
+			pthread_mutex_unlock(&args->lock);
+		}
+	}
+
+	return NULL;
+}
+
 /**
  * @brief Run destination server
  * @details Accept client connections and update the shared queue of client file
@@ -146,9 +153,8 @@ void src_server()
  */
 void *dst_server()
 {
-	int new_fd;
+	int res, new_fd, thread_index;
 	struct server_socket *dst_server = NULL;
-	struct client_entry *new_client_entry = NULL;
 
 	dst_server = server_create(DST_PORT);
 	if (!dst_server) {
@@ -164,57 +170,43 @@ void *dst_server()
 			continue;
 		}
 
-		new_client_entry = malloc(sizeof(struct client_entry));
-		if (!new_client_entry) {
-			perror("malloc");
-			exit(errno);
+		thread_index = find_thread(&client_workers, num_workers);
+
+		/* assign client file descriptor */
+		if (thread_index != -1) {
+			/* check thread state */
+			switch (client_workers[thread_index].status) {
+			case THREAD_AVAILABLE:
+				/* initialise thread arguments before creating */
+				pthread_mutex_init(&client_workers[thread_index].args.lock, NULL);
+				pthread_cond_init(&client_workers[thread_index].args.cond, NULL);
+				client_workers[thread_index].args.client_fd = new_fd;
+				client_workers[thread_index].status = THREAD_BUSY;
+
+				res = pthread_create(&client_workers[thread_index].thread,
+						NULL, dst_worker, &client_workers[thread_index].args);
+				if (res != 0) {
+					perror("pthread_create");
+					exit(errno);
+				}
+				break;
+			case THREAD_READY:
+				/* reassign file descriptor and signal */
+				pthread_mutex_lock(&client_workers[thread_index].args.lock);
+				client_workers[thread_index].args.client_fd = new_fd;
+				client_workers[thread_index].status = THREAD_BUSY;
+				pthread_cond_signal(&client_workers[thread_index].args.cond);
+				pthread_mutex_unlock(&client_workers[thread_index].args.lock);
+				break;
+			default:
+				break;
+			}
+		} else {
+			/* FIXME replace with condition on thread being
+			 * available? */
+			pr_err("no thread available\n");
+			continue;
 		}
-
-		new_client_entry->fd = new_fd;
-		new_client_entry->open = true;
-		pr_debug("adding receiver connection (fd %d)\n", new_client_entry->fd);
-		pthread_mutex_lock(&client_lock);
-		TAILQ_INSERT_TAIL(&client_queue_head, new_client_entry, entries);
-		pthread_mutex_unlock(&client_lock);
-
-		new_client_entry = NULL;
-	}
-
-	return NULL;
-}
-
-/**
- * @brief Run broadcast worker
- * @details Wait for messages to enter the queue and broadcast them to all
- * currently connected receivers
- */
-void *bcast_work()
-{
-	struct msg_entry *current = NULL;
-
-	while (1) {
-		pthread_mutex_lock(&msg_lock);
-		while (TAILQ_EMPTY(&msg_queue_head)) {
-			pthread_cond_wait(&msg_cond, &msg_lock);
-		}
-
-		/* get new entry and remove from queue */
-		current = TAILQ_FIRST(&msg_queue_head);
-		TAILQ_REMOVE(&msg_queue_head, current, entries);
-		pthread_mutex_unlock(&msg_lock);
-
-		/*
-		 * race between new receiver & broadcast still observed with
-		 * third thread
-		 * -> TODO fix by adding grace period to allow for new receivers
-		 */
-
-		/* broadcast message */
-		broadcast(current->msg);
-
-		/* free message data after broadcast */
-		free_ctmp_msg(current->msg);
-		free(current);
 	}
 
 	return NULL;
@@ -223,25 +215,20 @@ void *bcast_work()
 int main(int argc, char *argv[])
 {
 	int res;
-	pthread_t dst_server_thread, bcast_thread;
+	pthread_t dst_server_thread;
 
 	/* parse command-line arguments */
 	parse_args(argc, argv, &init_args);
 	pr_debug("extended = %d\n", init_args.extended);
 
 	/* initialise client and message queues */
-	TAILQ_INIT(&client_queue_head);
 	TAILQ_INIT(&msg_queue_head);
+
+	/* allocate thread array */
+	init_workers(&client_workers, num_workers);
 
 	/* create destination server thread */
 	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);
-	if (res != 0) {
-		perror("pthread_create");
-		exit(res);
-	}
-
-	/* TODO create broadcast thread */
-	res = pthread_create(&bcast_thread, NULL, &bcast_work, NULL);
 	if (res != 0) {
 		perror("pthread_create");
 		exit(res);
