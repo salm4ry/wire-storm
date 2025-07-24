@@ -18,6 +18,8 @@ void init_workers(struct worker **workers, int num_workers)
 
 	/* initialise thread states */
 	for (int i = 0; i < num_workers; i++) {
+		/* each worker thread is aware of their thread index */
+		(*workers)[i].args.thread_index = i;
 		(*workers)[i].status = THREAD_AVAILABLE;
 		(*workers)[i].args.status = &(*workers[i]).status;
 	}

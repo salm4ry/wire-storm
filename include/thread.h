@@ -10,6 +10,7 @@
 
 struct worker_args {
 	int client_fd;
+	int thread_index;
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
 	int *status;

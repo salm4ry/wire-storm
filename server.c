@@ -17,8 +17,17 @@
 
 #include "include/thread.h"
 
+/**
+ * @brief Array of client worker thread structures
+ * @details Memory is allocated for `num_workers` threads when the server
+ * starts. New clients have to wait for a thread to become available if all
+ * threads are busy.
+ */
 struct worker *client_workers = NULL;
-int num_workers = 30; /* TODO configurable */
+
+/* TODO configurable */
+int num_workers = 30;
+int grace_period = 2;
 
 pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
@@ -101,12 +110,12 @@ void src_server()
 
 void *dst_worker(void *data)
 {
-	struct msg_entry *current = NULL;
+	struct msg_entry *current = NULL, *next = NULL;
 	ssize_t bytes_sent = 0;
 	struct worker_args *args = (struct worker_args *) data;
 
 	while (1) {
-		if (TAILQ_EMPTY(&msg_queue_head)) {
+		if (TAILQ_EMPTY(&msg_queue_head) || !current) {
 			pthread_mutex_lock(&msg_lock);
 			while (TAILQ_EMPTY(&msg_queue_head)) {
 				pthread_cond_wait(&msg_cond, &msg_lock);
@@ -117,11 +126,16 @@ void *dst_worker(void *data)
 			pthread_mutex_unlock(&msg_lock);
 		}
 
-		/* read file descriptor */
-		bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
+		/* only send if we haven't sent this message before */
+		if (!current->sent[args->thread_index]) {
+			/* send message to the assigned file descriptor */
+			bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
+			/* TODO update bitmask */
+			current->sent[args->thread_index] = true;
+		}
 
 		/* get next message */
-		current = TAILQ_NEXT(current, entries);
+		next = TAILQ_NEXT(current, entries);
 
 		if (bytes_sent < 0) {
 			/* send failed, wait for new fd */
@@ -129,9 +143,13 @@ void *dst_worker(void *data)
 			pthread_cond_wait(&args->cond, &args->lock);
 			/* update thread status */
 			*(args->status) = THREAD_READY;
-			pr_debug("updated status\n");
+
+			/* reset sent status for new connection */
+			current->sent[args->thread_index] = false;
 			pthread_mutex_unlock(&args->lock);
 		}
+
+		current = next;
 	}
 
 	return NULL;
