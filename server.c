@@ -13,17 +13,13 @@
 #include "include/log.h"
 #include "include/socket.h"
 #include "include/ctmp.h"
+#include "include/msg_queue.h"
 
 #include "include/thread.h"
 
 struct worker *client_workers = NULL;
 int num_workers = 30; /* TODO configurable */
 
-struct msg_entry {
-	struct ctmp_msg *msg;  ///< CTMP message structure to broadcast
-	TAILQ_ENTRY(msg_entry) entries;  ///< prev + next pointers for message queue
-};
-TAILQ_HEAD(msg_queue, msg_entry);  ///< define msg_queue as a doubly linked tail queue
 pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
 struct msg_queue msg_queue_head;
@@ -84,14 +80,9 @@ void src_server()
 					MSG_PEEK | MSG_DONTWAIT) != 0) {
 			current_msg = parse_func(src_socket);
 			if (current_msg) {
-				/* add message to queue */
-				new_msg_entry = malloc(sizeof(struct msg_entry));
-				if (!new_msg_entry) {
-					perror("malloc");
-					exit(errno);
-				}
+				init_msg_entry(&new_msg_entry, current_msg,
+						num_workers);
 
-				new_msg_entry->msg = current_msg;
 				pthread_mutex_lock(&msg_lock);
 				/* add message to queue */
 				TAILQ_INSERT_TAIL(&msg_queue_head, new_msg_entry, entries);
