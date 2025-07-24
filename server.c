@@ -181,42 +181,47 @@ void *dst_server()
 
 		thread_index = find_thread(&client_workers, num_workers);
 
-		/* assign client file descriptor */
-		if (thread_index != -1) {
-			/* check thread state */
-			switch (client_workers[thread_index].status) {
-			case THREAD_AVAILABLE:
-				/* initialise thread arguments before creating */
-				pthread_mutex_init(&client_workers[thread_index].args.lock, NULL);
-				pthread_cond_init(&client_workers[thread_index].args.cond, NULL);
-				client_workers[thread_index].args.client_fd = new_fd;
-				client_workers[thread_index].status = THREAD_BUSY;
+		/* TODO retry period? */
+		while (thread_index < 0) {
+			pr_err("no thread available, retrying\n");
+			thread_index = find_thread(&client_workers, num_workers);
+		}
 
-				res = pthread_create(&client_workers[thread_index].thread,
-						NULL, dst_worker, &client_workers[thread_index].args);
-				if (res != 0) {
-					perror("pthread_create");
-					exit(errno);
-				}
-				break;
-			case THREAD_READY:
-				/* reassign file descriptor and signal */
-				pthread_mutex_lock(&client_workers[thread_index].args.lock);
-				client_workers[thread_index].args.client_fd = new_fd;
-				client_workers[thread_index].status = THREAD_BUSY;
-				pthread_cond_signal(&client_workers[thread_index].args.cond);
-				pthread_mutex_unlock(&client_workers[thread_index].args.lock);
-				break;
-			default:
-				break;
+		/* check thread state */
+		switch (client_workers[thread_index].status) {
+		case THREAD_AVAILABLE:
+			/* initialise thread arguments before creating */
+			pthread_mutex_init(&client_workers[thread_index].args.lock, NULL);
+			pthread_cond_init(&client_workers[thread_index].args.cond, NULL);
+			client_workers[thread_index].args.client_fd = new_fd;
+			client_workers[thread_index].status = THREAD_BUSY;
+
+			res = pthread_create(&client_workers[thread_index].thread,
+					NULL, dst_worker, &client_workers[thread_index].args);
+			if (res != 0) {
+				perror("pthread_create");
+				exit(errno);
 			}
-		} else {
-			/* FIXME replace with condition on thread being
-			 * available? */
-			pr_err("no thread available\n");
-			continue;
+			break;
+		case THREAD_READY:
+			/* reassign file descriptor and signal */
+			pthread_mutex_lock(&client_workers[thread_index].args.lock);
+			client_workers[thread_index].args.client_fd = new_fd;
+			client_workers[thread_index].status = THREAD_BUSY;
+			pthread_cond_signal(&client_workers[thread_index].args.cond);
+			pthread_mutex_unlock(&client_workers[thread_index].args.lock);
+			break;
+		default:
+			break;
 		}
 	}
+
+	return NULL;
+}
+
+void *cleanup_work()
+{
+	/* TODO clean up messages in the queue that are past their grace period */
 
 	return NULL;
 }
@@ -224,7 +229,7 @@ void *dst_server()
 int main(int argc, char *argv[])
 {
 	int res;
-	pthread_t dst_server_thread;
+	pthread_t dst_server_thread, cleanup_thread;
 
 	/* parse command-line arguments */
 	parse_args(argc, argv, &init_args);

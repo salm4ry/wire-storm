@@ -49,10 +49,10 @@ make
     - [x] service each receiver in a separate threads (keeping track of thread
       state)
     - [x] have a maximum number of threads
-    - [ ] keep receivers over the thread limit waiting for an available thread
+    - [x] keep receivers over the thread limit waiting for an available thread
     - [ ] keep messages in the queue for a given "grace period" then remove them
       in order to avoid incorrect messages being sent
-        - [ ] store a bitmask of fds with a given message has been sent to
+        - [x] store a bitmask of fds with a given message has been sent to
         - [ ] delete messages after the grace period has passed
     - [ ] configurable options
         - [ ] max number of threads
