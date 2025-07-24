@@ -405,7 +405,11 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 	}
 
 	/* check options */
-	if (msg->header[OPTIONS_POS] == OPT_SEN) {
+	switch (msg->header[OPTIONS_POS]) {
+	case OPT_NORM:
+		/* do nothing */
+		break;
+	case OPT_SEN:
 		/* validate checksum */
 		header_checksum = (msg->header[CHECKSUM_POS+1] << 8) + msg->header[CHECKSUM_POS];
 		calculated_checksum = calc_checksum(msg);
@@ -417,8 +421,10 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 			free_ctmp_msg(msg);
 			msg = NULL;
 		}
-	} else if (msg->header[OPTIONS_POS] != OPT_NORM) {
-		pr_err("invalid options (0x%02x)\n", msg->header[1]);
+		break;
+	default:
+		pr_err("invalid options (0x%02x)\n", msg->header[OPTIONS_POS]);
+		break;
 	}
 
 out:
