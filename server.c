@@ -14,7 +14,6 @@
 #include "include/socket.h"
 #include "include/ctmp.h"
 #include "include/msg_queue.h"
-
 #include "include/thread.h"
 
 /**
@@ -24,10 +23,6 @@
  * threads are busy.
  */
 struct worker *client_workers = NULL;
-
-/* TODO configurable */
-int num_workers = 30;
-int grace_period = 2;
 
 pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
@@ -90,7 +85,7 @@ void src_server()
 			current_msg = parse_func(src_socket);
 			if (current_msg) {
 				init_msg_entry(&new_msg_entry, current_msg,
-						num_workers);
+						init_args.num_workers);
 
 				pthread_mutex_lock(&msg_lock);
 				/* add message to queue */
@@ -115,6 +110,7 @@ void *dst_worker(void *data)
 	struct worker_args *args = (struct worker_args *) data;
 
 	while (1) {
+		/* if we've reached the end of the queue, go back to the start */
 		if (TAILQ_EMPTY(&msg_queue_head) || !current) {
 			pthread_mutex_lock(&msg_lock);
 			while (TAILQ_EMPTY(&msg_queue_head)) {
@@ -127,7 +123,9 @@ void *dst_worker(void *data)
 		}
 
 		/* only send if we haven't sent this message before */
-		if (!current->sent[args->thread_index]) {
+		if (!current->sent[args->thread_index] &&
+				valid_msg_timestamp(current, args->timestamp,
+					init_args.grace_period)) {
 			/* send message to the assigned file descriptor */
 			bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
 			/* TODO update bitmask */
@@ -181,12 +179,13 @@ void *dst_server()
 			continue;
 		}
 
-		thread_index = find_thread(&client_workers, num_workers);
+		thread_index = find_thread(&client_workers, init_args.num_workers);
 
 		/* TODO retry period? */
 		while (thread_index < 0) {
 			pr_err("no thread available, retrying\n");
-			thread_index = find_thread(&client_workers, num_workers);
+			thread_index = find_thread(&client_workers,
+					init_args.num_workers);
 		}
 
 		/* check thread state */
@@ -234,14 +233,17 @@ int main(int argc, char *argv[])
 	pthread_t dst_server_thread, cleanup_thread;
 
 	/* parse command-line arguments */
+	set_default_args(&init_args);
 	parse_args(argc, argv, &init_args);
-	pr_debug("extended = %d\n", init_args.extended);
+	pr_debug("extended = %d, num_workers = %d, grace_period = %d\n",
+			init_args.extended, init_args.num_workers,
+			init_args.grace_period);
 
 	/* initialise client and message queues */
 	TAILQ_INIT(&msg_queue_head);
 
 	/* allocate thread array */
-	init_workers(&client_workers, num_workers);
+	init_workers(&client_workers, init_args.num_workers);
 
 	/* create destination server thread */
 	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);

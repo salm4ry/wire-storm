@@ -54,9 +54,7 @@ make
       in order to avoid incorrect messages being sent
         - [x] store a bitmask of fds with a given message has been sent to
         - [ ] delete messages after the grace period has passed
-    - [ ] configurable options
-        - [ ] max number of threads
-        - [ ] grace period in seconds
+    - [x] configurable optional: max number of threads, grace period in seconds
 - [ ] performance analysis (`perf` etc.)
 - [x] Wire Storm Reloaded
     - [x] updated header parsing (checksum calculation + validation)
