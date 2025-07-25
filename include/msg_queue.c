@@ -6,6 +6,7 @@
 
 #include "ctmp.h"
 #include "msg_queue.h"
+#include "timestamp.h"
 
 /* TODO naming */
 
@@ -25,10 +26,12 @@ void init_msg_entry(struct msg_entry **entry, struct ctmp_msg *msg,
 		exit(errno);
 	}
 
+	/* init timestamp */
+	get_clock_time(&(*entry)->timestamp);
+
 	(*entry)->msg = msg;
 
-	/* TODO init bitmask */
-	(*entry)->sent = malloc(num_threads * sizeof(unsigned char));
+	(*entry)->sent = malloc(num_threads * sizeof(bool));
 	if (!(*entry)->sent) {
 		perror("malloc");
 		exit(errno);
@@ -42,7 +45,27 @@ void init_msg_entry(struct msg_entry **entry, struct ctmp_msg *msg,
 void free_msg_entry(struct msg_entry *entry)
 {
 	free_ctmp_msg(entry->msg);
-	/* TODO free bitmask */
 	free(entry->sent);
 	free(entry);
+}
+
+/* TODO docstrings for within_grace_period() and can_forward() */
+
+/* TODO fix for clock_gettime()
+ * determine if a given message entry was sent within its grace period */
+bool within_grace_period(struct msg_entry *entry, int grace_period)
+{
+	// return (entry->timestamp + (grace_period * MS_PER_SEC) <= current_ts);
+	return true;
+}
+
+/* NOTE determine whether a receiver can send a given message i.e. the message
+ * was sent after the receiver connected */
+bool can_forward(struct msg_entry *entry, struct timespec recv_start,
+		int grace_period)
+{
+
+	/* TODO seconds are not precise enough: use gettimeofday() instead */
+	return (compare_times(&recv_start, &entry->timestamp) &&
+			within_grace_period(entry, grace_period));
 }

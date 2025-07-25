@@ -15,6 +15,7 @@
 #include "include/ctmp.h"
 #include "include/msg_queue.h"
 #include "include/thread.h"
+#include "include/timestamp.h"
 
 /**
  * @brief Array of client worker thread structures
@@ -123,8 +124,16 @@ void *dst_worker(void *data)
 		}
 
 		/* only send if we haven't sent this message before */
+		if (args->thread_index == 0 && !current->sent[args->thread_index]) {
+			pr_debug("thread %d: sent: %d, msg: %ld, receiver: %ld\n",
+					args->thread_index,
+					current->sent[args->thread_index],
+					current->timestamp,
+					args->timestamp);
+		}
+
 		if (!current->sent[args->thread_index] &&
-				valid_msg_timestamp(current, args->timestamp,
+				can_forward(current, args->timestamp,
 					init_args.grace_period)) {
 			/* send message to the assigned file descriptor */
 			bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
@@ -141,8 +150,9 @@ void *dst_worker(void *data)
 			/* send failed, wait for new fd */
 			pthread_mutex_lock(&args->lock);
 			pthread_cond_wait(&args->cond, &args->lock);
-			/* update thread status */
+			/* update thread status and timestamp */
 			*(args->status) = THREAD_READY;
+			get_clock_time(&args->timestamp);
 
 			/* reset sent status for new connection */
 			current->sent[args->thread_index] = false;
@@ -196,6 +206,7 @@ void *dst_server()
 			pthread_cond_init(&client_workers[thread_index].args.cond, NULL);
 			client_workers[thread_index].args.client_fd = new_fd;
 			client_workers[thread_index].status = THREAD_BUSY;
+			get_clock_time(&client_workers[thread_index].args.timestamp);
 
 			res = pthread_create(&client_workers[thread_index].thread,
 					NULL, dst_worker, &client_workers[thread_index].args);
@@ -209,6 +220,7 @@ void *dst_server()
 			pthread_mutex_lock(&client_workers[thread_index].args.lock);
 			client_workers[thread_index].args.client_fd = new_fd;
 			client_workers[thread_index].status = THREAD_BUSY;
+			get_clock_time(&client_workers[thread_index].args.timestamp);
 			pthread_cond_signal(&client_workers[thread_index].args.cond);
 			pthread_mutex_unlock(&client_workers[thread_index].args.lock);
 			break;
@@ -247,6 +259,13 @@ int main(int argc, char *argv[])
 
 	/* create destination server thread */
 	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);
+	if (res != 0) {
+		perror("pthread_create");
+		exit(res);
+	}
+
+	/* create message cleanup thread */
+	res = pthread_create(&cleanup_thread, NULL, &cleanup_work, NULL);
 	if (res != 0) {
 		perror("pthread_create");
 		exit(res);

@@ -1,6 +1,7 @@
 /// @file
 
 #include <pthread.h>
+#include <time.h>
 
 #define THREAD_AVAILABLE 0  ///< Thread has not yet been created
 #define THREAD_BUSY 1 ///< Thread is working
@@ -11,6 +12,7 @@
 struct worker_args {
 	int client_fd;
 	int thread_index;
+	struct timespec timestamp;
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
 	int *status;
