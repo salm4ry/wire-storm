@@ -134,8 +134,10 @@ void *dst_worker(void *data)
 			current->sent[args->thread_index] = true;
 		}
 
+		pthread_mutex_lock(&msg_lock);
 		/* get next message */
 		next = TAILQ_NEXT(current, entries);
+		pthread_mutex_unlock(&msg_lock);
 
 		if (bytes_sent < 0) {
 			/* send failed, wait for new fd */
