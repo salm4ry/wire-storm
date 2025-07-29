@@ -64,8 +64,13 @@ bool within_grace_period(struct msg_entry *entry, int grace_period)
 bool can_forward(struct msg_entry *entry, struct timespec recv_start,
 		int grace_period)
 {
+	struct timespec grace_period_ts;
 
-	/* TODO seconds are not precise enough: use gettimeofday() instead */
-	return (compare_times(&recv_start, &entry->timestamp) &&
-			within_grace_period(entry, grace_period));
+	grace_period_ts = entry->timestamp;
+	/* TODO use argument
+	grace_period_ts.tv_nsec += 400 * MS_PER_NSEC;
+	*/
+
+	return (compare_times(&recv_start, &entry->timestamp) ||
+		compare_times(&recv_start, &grace_period_ts));
 }

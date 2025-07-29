@@ -106,7 +106,7 @@ void src_server()
 
 void *dst_worker(void *data)
 {
-	struct msg_entry *current = NULL, *next = NULL;
+	struct msg_entry *current = NULL, *prev = NULL, *next = NULL;
 	ssize_t bytes_sent = 0;
 	struct worker_args *args = (struct worker_args *) data;
 
@@ -114,28 +114,36 @@ void *dst_worker(void *data)
 		/* if we've reached the end of the queue, go back to the start */
 		if (TAILQ_EMPTY(&msg_queue_head) || !current) {
 			pthread_mutex_lock(&msg_lock);
-			while (TAILQ_EMPTY(&msg_queue_head)) {
-				pthread_cond_wait(&msg_cond, &msg_lock);
+			/* wait on different conditions depending on if the
+			 * queue is empty or we are just waiting for the next
+			 * message */
+			if (TAILQ_EMPTY(&msg_queue_head) || !prev) {
+				pr_debug("thread %d waiting for first entry\n",
+						args->thread_index);
+				/* wait for first entry */
+				while (TAILQ_EMPTY(&msg_queue_head)) {
+					pthread_cond_wait(&msg_cond, &msg_lock);
+				}
+				current = TAILQ_FIRST(&msg_queue_head);
+			} else {
+				pr_debug("thread %d waiting for next entry\n",
+						args->thread_index);
+				/* wait for next entry */
+				while (!TAILQ_NEXT(prev, entries)) {
+					pthread_cond_wait(&msg_cond, &msg_lock);
+				}
+				current = TAILQ_NEXT(prev, entries);
 			}
 
-			/* get first entry */
-			current = TAILQ_FIRST(&msg_queue_head);
 			pthread_mutex_unlock(&msg_lock);
-		}
-
-		/* only send if we haven't sent this message before */
-		if (args->thread_index == 0 && !current->sent[args->thread_index]) {
-			pr_debug("thread %d: sent: %d, msg: %ld, receiver: %ld\n",
-					args->thread_index,
-					current->sent[args->thread_index],
-					current->timestamp,
-					args->timestamp);
 		}
 
 		if (!current->sent[args->thread_index] &&
 				can_forward(current, args->timestamp,
 					init_args.grace_period)) {
 			/* send message to the assigned file descriptor */
+			pr_debug("thread %d sending a %d-byte message\n",
+					args->thread_index, current->msg->len);
 			bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
 			/* TODO update bitmask */
 			current->sent[args->thread_index] = true;
@@ -147,18 +155,22 @@ void *dst_worker(void *data)
 		pthread_mutex_unlock(&msg_lock);
 
 		if (bytes_sent < 0) {
+			pr_debug("thread %d waiting for new fd...\n",
+					args->thread_index);
 			/* send failed, wait for new fd */
 			pthread_mutex_lock(&args->lock);
-			pthread_cond_wait(&args->cond, &args->lock);
-			/* update thread status and timestamp */
 			*(args->status) = THREAD_READY;
-			get_clock_time(&args->timestamp);
-
+			while (*(args->status) != THREAD_BUSY) {
+				pthread_cond_wait(&args->cond, &args->lock);
+			}
 			/* reset sent status for new connection */
 			current->sent[args->thread_index] = false;
 			pthread_mutex_unlock(&args->lock);
+			pr_debug("thread %d got new fd %d\n",
+					args->thread_index, args->client_fd);
 		}
 
+		prev = current;
 		current = next;
 	}
 
@@ -173,6 +185,7 @@ void *dst_worker(void *data)
 void *dst_server()
 {
 	int res, new_fd, thread_index;
+	struct timespec client_timestamp;
 	struct server_socket *dst_server = NULL;
 
 	dst_server = server_create(DST_PORT);
@@ -189,8 +202,10 @@ void *dst_server()
 			continue;
 		}
 
-		thread_index = find_thread(&client_workers, init_args.num_workers);
+		/* set timestamp to be time of accepting the connection */
+		get_clock_time(&client_timestamp);
 
+		thread_index = find_thread(&client_workers, init_args.num_workers);
 		/* TODO retry period? */
 		while (thread_index < 0) {
 			pr_err("no thread available, retrying\n");
@@ -206,7 +221,8 @@ void *dst_server()
 			pthread_cond_init(&client_workers[thread_index].args.cond, NULL);
 			client_workers[thread_index].args.client_fd = new_fd;
 			client_workers[thread_index].status = THREAD_BUSY;
-			get_clock_time(&client_workers[thread_index].args.timestamp);
+			client_workers[thread_index].args.status = &client_workers[thread_index].status;
+			client_workers[thread_index].args.timestamp = client_timestamp;
 
 			res = pthread_create(&client_workers[thread_index].thread,
 					NULL, dst_worker, &client_workers[thread_index].args);
@@ -220,7 +236,8 @@ void *dst_server()
 			pthread_mutex_lock(&client_workers[thread_index].args.lock);
 			client_workers[thread_index].args.client_fd = new_fd;
 			client_workers[thread_index].status = THREAD_BUSY;
-			get_clock_time(&client_workers[thread_index].args.timestamp);
+			client_workers[thread_index].args.status = &client_workers[thread_index].status;
+			client_workers[thread_index].args.timestamp = client_timestamp;
 			pthread_cond_signal(&client_workers[thread_index].args.cond);
 			pthread_mutex_unlock(&client_workers[thread_index].args.lock);
 			break;
