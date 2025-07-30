@@ -23,7 +23,7 @@
  * starts. New clients have to wait for a thread to become available if all
  * threads are busy.
  */
-struct worker *client_workers = NULL;
+struct worker_list dst;
 
 pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t msg_cond = PTHREAD_COND_INITIALIZER;
@@ -154,11 +154,19 @@ void *dst_worker(void *data)
 		pthread_mutex_unlock(&msg_lock);
 
 		if (bytes_sent < 0) {
+conn_closed:
 			pr_debug("thread %d waiting for new fd...\n",
 					args->thread_index);
 			/* send failed, wait for new fd */
 			pthread_mutex_lock(&args->lock);
+
+			/* update status */
 			*(args->status) = THREAD_READY;
+			pthread_mutex_lock(&args->global_status->lock);
+			update_bit(&args->global_status->data,
+					args->thread_index, false);
+			pthread_mutex_unlock(&args->global_status->lock);
+
 			while (*(args->status) != THREAD_BUSY) {
 				pthread_cond_wait(&args->cond, &args->lock);
 			}
@@ -205,27 +213,33 @@ void *dst_server()
 		/* set timestamp to be time of accepting the connection */
 		get_clock_time(&client_timestamp);
 
-		thread_index = find_thread(&client_workers, init_args.num_workers);
+		thread_index = find_thread(&dst);
 		/* TODO retry period? */
 		while (thread_index < 0) {
 			pr_err("no thread available, retrying\n");
-			thread_index = find_thread(&client_workers,
-					init_args.num_workers);
+			thread_index = find_thread(&dst);
 		}
 
 		/* check thread state */
-		switch (client_workers[thread_index].status) {
+		switch (dst.workers[thread_index].status) {
 		case THREAD_AVAILABLE:
 			/* initialise thread arguments before creating */
-			pthread_mutex_init(&client_workers[thread_index].args.lock, NULL);
-			pthread_cond_init(&client_workers[thread_index].args.cond, NULL);
-			client_workers[thread_index].args.client_fd = new_fd;
-			client_workers[thread_index].status = THREAD_BUSY;
-			client_workers[thread_index].args.status = &client_workers[thread_index].status;
-			client_workers[thread_index].args.timestamp = client_timestamp;
+			pthread_mutex_init(&dst.workers[thread_index].args.lock, NULL);
+			pthread_cond_init(&dst.workers[thread_index].args.cond, NULL);
+			dst.workers[thread_index].args.client_fd = new_fd;
 
-			res = pthread_create(&client_workers[thread_index].thread,
-					NULL, dst_worker, &client_workers[thread_index].args);
+			/* update status
+			 * TODO separate into function */
+			dst.workers[thread_index].status = THREAD_BUSY;
+			dst.workers[thread_index].args.status = &dst.workers[thread_index].status;
+			pthread_mutex_lock(&dst.mask.lock);
+			update_bit(&dst.mask.data, thread_index, true);
+			pthread_mutex_unlock(&dst.mask.lock);
+
+			dst.workers[thread_index].args.timestamp = client_timestamp;
+
+			res = pthread_create(&dst.workers[thread_index].thread,
+					NULL, dst_worker, &dst.workers[thread_index].args);
 			if (res != 0) {
 				perror("pthread_create");
 				exit(errno);
@@ -233,13 +247,20 @@ void *dst_server()
 			break;
 		case THREAD_READY:
 			/* reassign file descriptor and signal */
-			pthread_mutex_lock(&client_workers[thread_index].args.lock);
-			client_workers[thread_index].args.client_fd = new_fd;
-			client_workers[thread_index].status = THREAD_BUSY;
-			client_workers[thread_index].args.status = &client_workers[thread_index].status;
-			client_workers[thread_index].args.timestamp = client_timestamp;
-			pthread_cond_signal(&client_workers[thread_index].args.cond);
-			pthread_mutex_unlock(&client_workers[thread_index].args.lock);
+			pthread_mutex_lock(&dst.workers[thread_index].args.lock);
+			dst.workers[thread_index].args.client_fd = new_fd;
+
+			/* update status
+			 * TODO separate into function */
+			dst.workers[thread_index].status = THREAD_BUSY;
+			dst.workers[thread_index].args.status = &dst.workers[thread_index].status;
+			pthread_mutex_lock(&dst.mask.lock);
+			update_bit(&dst.mask.data, thread_index, true);
+			pthread_mutex_unlock(&dst.mask.lock);
+
+			dst.workers[thread_index].args.timestamp = client_timestamp;
+			pthread_cond_signal(&dst.workers[thread_index].args.cond);
+			pthread_mutex_unlock(&dst.workers[thread_index].args.lock);
 			break;
 		default:
 			break;
@@ -272,7 +293,7 @@ int main(int argc, char *argv[])
 	TAILQ_INIT(&msg_queue_head);
 
 	/* allocate thread array */
-	init_workers(&client_workers, init_args.num_workers);
+	init_workers(&dst, init_args.num_workers);
 
 	/* create destination server thread */
 	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);

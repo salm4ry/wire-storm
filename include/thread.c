@@ -8,6 +8,8 @@
 #include "thread.h"
 #include "timestamp.h"
 
+/* TODO update docstrings */
+
 /**
  * @brief Initialise worker threads
  * @param workers pointer to array of worker structs
@@ -15,24 +17,32 @@
  * @details Allocate memory for `workers`, then initialise the state values for
  * each worker
  */
-void init_workers(struct worker **workers, int num_workers)
+void init_workers(struct worker_list *list, int num_workers)
 {
 	/* allocate thread array */
-	*workers = malloc(num_workers * sizeof(struct worker));
-	if (!(*workers)) {
+	list->num_workers = num_workers;
+	list->workers = malloc(list->num_workers * sizeof(struct worker));
+	if (!list->workers) {
 		perror("malloc");
 		exit(errno);
 	}
 
-	/* initialise thread states */
-	for (int i = 0; i < num_workers; i++) {
-		/* each worker thread is aware of their thread index */
-		(*workers)[i].args.thread_index = i;
+	/* initialise status mask: 0 = available, 1 = busy
+	 * NOTE: this does not include the third "ready" state since that's
+	 * stored in the separate per-worker status field */
+	list->mask.data = 0;
+	pthread_mutex_init(&list->mask.lock, NULL);
 
-		/* NOTE timestamp so that older messages are not sent */
-		get_clock_time(&(*workers)[i].args.timestamp);
-		(*workers)[i].status = THREAD_AVAILABLE;
-		(*workers)[i].args.status = &(*workers[i]).status;
+	/* initialise thread states */
+	for (int i = 0; i < list->num_workers; i++) {
+		/* each worker thread is aware of their thread index */
+		list->workers[i].args.thread_index = i;
+
+		/* timestamp so that older messages are not sent */
+		get_clock_time(&(list->workers)[i].args.timestamp);
+		list->workers[i].status = THREAD_AVAILABLE;
+		list->workers[i].args.status = &(list->workers[i]).status;
+		list->workers[i].args.global_status = &list->mask;
 	}
 }
 
@@ -44,10 +54,17 @@ void init_workers(struct worker **workers, int num_workers)
  created) or "ready" (thread created and waiting).
  * @return Thread index of non-busy worker thread on success, -1 on error
  */
-int find_thread(struct worker **workers, int num_workers)
+int find_thread(struct worker_list *list)
 {
-	for (int i = 0; i < num_workers; i++) {
-		if ((*workers)[i].status != THREAD_BUSY) {
+	bool is_available;
+
+	/* iterate through bits in the status bitmask */
+	for (int i = 0; i < list->num_workers; i++) {
+		pthread_mutex_lock(&list->mask.lock);
+		is_available = !(is_set(&list->mask.data, i));
+		pthread_mutex_unlock(&list->mask.lock);
+
+		if (is_available) {
 			return i;
 		}
 	}
