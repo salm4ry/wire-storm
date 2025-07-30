@@ -8,14 +8,12 @@
 #include "thread.h"
 #include "timestamp.h"
 
-/* TODO update docstrings */
-
 /**
  * @brief Initialise worker threads
- * @param workers pointer to array of worker structs
- * @param num_workers number of workers stored in `workers`
- * @details Allocate memory for `workers`, then initialise the state values for
- * each worker
+ * @param list pointer to worker thread list struct
+ * @param num_workers number of workers to set up
+ * @details Allocate memory for `workers`, then initialise the state values
+ * (global and per-worker) and timestamps
  */
 void init_workers(struct worker_list *list, int num_workers)
 {
@@ -48,8 +46,7 @@ void init_workers(struct worker_list *list, int num_workers)
 
 /**
  * @brief Find a non-busy thread
- * @param workers pointer to array of worker structs
- * @param num_workers number of workers stored in `workers`
+ * @param list pointer to array of worker thread list struct
  * @details A "non-busy" thread is either "available" (space exists but not yet
  created) or "ready" (thread created and waiting).
  * @return Thread index of non-busy worker thread on success, -1 on error

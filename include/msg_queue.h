@@ -26,6 +26,5 @@ void free_msg_entry(struct msg_entry *entry);
 
 bool is_sent(struct msg_entry *entry, int thread_index);
 void update_sent(struct msg_entry *entry, int thread_index, bool val);
-bool within_grace_period(struct msg_entry *entry, int grace_period);
-bool can_forward(struct msg_entry *entry, struct timespec recv_start,
-		int grace_period);
+bool can_forward(struct msg_entry *entry, int thread_index,
+		struct timespec recv_start);

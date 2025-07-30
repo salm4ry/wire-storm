@@ -35,10 +35,8 @@ struct args init_args;
  * TODO
  * - when accepting a new receiver, wait until a thread becomes available if
  *   there aren't any available
- * - store bitmask of fds a given message has been sent to to avoid resending
- *   messages
- * - delete messages after the (configurable) grace period has passed
- * - configure maximum number of worker threads
+ * 	-> exponential backoff while waiting
+ * - delete messages after the (configurable) TTL has passed
  */
 
 /**
@@ -111,7 +109,7 @@ void *dst_worker(void *data)
 			 * queue is empty or we are just waiting for the next
 			 * message */
 			if (TAILQ_EMPTY(&msg_queue_head) || !prev) {
-				pr_debug("thread %d waiting for first entry\n",
+				pr_debug("thread %d: waiting for first entry\n",
 						args->thread_index);
 				/* wait for first entry */
 				while (TAILQ_EMPTY(&msg_queue_head)) {
@@ -119,7 +117,7 @@ void *dst_worker(void *data)
 				}
 				current = TAILQ_FIRST(&msg_queue_head);
 			} else {
-				pr_debug("thread %d waiting for next entry\n",
+				pr_debug("thread %d: waiting for next entry\n",
 						args->thread_index);
 				/* wait for next entry */
 				while (!TAILQ_NEXT(prev, entries)) {
@@ -138,14 +136,19 @@ void *dst_worker(void *data)
 			goto conn_closed;
 		}
 
-		if (!is_sent(current, args->thread_index) &&
-				can_forward(current, args->timestamp,
-					init_args.grace_period)) {
+		if (can_forward(current, args->thread_index, args->timestamp)) {
 			/* send message to the assigned file descriptor */
-			pr_debug("thread %d sending a %d-byte message\n",
+			pr_debug("thread %d: sending a %d-byte message\n",
 					args->thread_index, current->msg->len);
 			bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
 			update_sent(current, args->thread_index, true);
+		} else {
+			/* TODO remove */
+#ifdef DEBUG
+			if (!is_sent(current, args->thread_index)) {
+				pr_debug("thread %d: can't forward, message too old\n");
+			}
+#endif
 		}
 
 		pthread_mutex_lock(&msg_lock);
@@ -155,7 +158,7 @@ void *dst_worker(void *data)
 
 		if (bytes_sent < 0) {
 conn_closed:
-			pr_debug("thread %d waiting for new fd...\n",
+			pr_debug("thread %d: waiting for new fd...\n",
 					args->thread_index);
 			/* send failed, wait for new fd */
 			pthread_mutex_lock(&args->lock);
@@ -174,7 +177,7 @@ conn_closed:
 			update_sent(current, args->thread_index, false);
 
 			pthread_mutex_unlock(&args->lock);
-			pr_debug("thread %d got new fd %d\n",
+			pr_debug("thread %d: got new fd %d\n",
 					args->thread_index, args->client_fd);
 		}
 
@@ -214,9 +217,9 @@ void *dst_server()
 		get_clock_time(&client_timestamp);
 
 		thread_index = find_thread(&dst);
-		/* TODO retry period? */
 		while (thread_index < 0) {
 			pr_err("no thread available, retrying\n");
+			/* TODO exponential backoff */
 			thread_index = find_thread(&dst);
 		}
 
@@ -272,7 +275,7 @@ void *dst_server()
 
 void *cleanup_work()
 {
-	/* TODO clean up messages in the queue that are past their grace period */
+	/* TODO clean up messages in the queue that are past their TTL */
 
 	return NULL;
 }

@@ -85,37 +85,19 @@ void update_sent(struct msg_entry *entry, int thread_index, bool val)
 	pthread_rwlock_unlock(&entry->sent_lock);
 }
 
-/* TODO
- * - fix for clock_gettime()
- * - docstring
- */
-bool within_grace_period(struct msg_entry *entry, int grace_period)
-{
-	/* determine if a given message entry was sent within its grace period */
-	// return (entry->timestamp + (grace_period * MS_PER_SEC) <= current_ts);
-	return true;
-}
-
 /* NOTE determine whether a receiver can send a given message i.e. the message
  * was sent after the receiver connected */
 /**
  * @brief Determine whether a receiver can send a given message
  * @param entry message entry to check
+ * @param thread_index receiver thread index
  * @param recv_start receiver connection timestamp
- * @param grace_period message grace period in seconds (TODO remove/fix)
  * @details A receiver can send a message iff it was sent after the receiver
  * connected
  */
-bool can_forward(struct msg_entry *entry, struct timespec recv_start,
-		int grace_period)
+bool can_forward(struct msg_entry *entry, int thread_index,
+		struct timespec recv_start)
 {
-	struct timespec grace_period_ts;
-
-	grace_period_ts = entry->timestamp;
-	/* TODO use the grace period
-	grace_period_ts.tv_nsec += 400 * MS_PER_NSEC;
-	*/
-
-	return (compare_times(&recv_start, &entry->timestamp) ||
-		compare_times(&recv_start, &grace_period_ts));
+	return (!is_sent(entry, thread_index) &&
+			compare_times(&recv_start, &entry->timestamp));
 }
