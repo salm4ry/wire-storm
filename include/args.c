@@ -29,8 +29,8 @@ void usage(char *prog_name)
 {
 	printf("usage: %s [OPTIONS]\n"
 	       "-e, --extended: use extended CTMP\n"
-	       "-n, --num-workers <num_workers>: max number of client worker threads to use\n"
-	       "-b, --backlog <grace_period>: backlog size for listen(2) \n"
+	       "-n, --num-workers <NUM>: maximum number of client worker threads to use\n"
+	       "-b, --backlog <LEN>: backlog length for listen(2) \n"
 	       "-h, --help: print this message and exit\n", basename(prog_name));
 }
 
