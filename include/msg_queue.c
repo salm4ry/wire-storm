@@ -56,7 +56,7 @@ void free_msg_entry(struct msg_entry *entry)
 /**
  * @brief Determine if a given thread has already sent a given message
  * @param entry message queue entry to check
- * @param thread_index index of thread to check message sent status of
+ * @param thread_index thread index (= bit position) to check message sent status of
  * @details The bit at the position `thread_index` in `entry->sent` represents
  * whether that thread has sent this message
  */
@@ -65,7 +65,7 @@ bool is_sent(struct msg_entry *entry, int thread_index)
 	bool res;
 
 	pthread_rwlock_rdlock(&entry->sent_lock);
-	res = (entry->sent & (1 << thread_index));
+	res = is_set(&entry->sent, thread_index);
 	pthread_rwlock_unlock(&entry->sent_lock);
 
 	return res;
@@ -74,23 +74,16 @@ bool is_sent(struct msg_entry *entry, int thread_index)
 /**
  * @brief Update the sent status bitmask at a given bit position
  * @param entry message queue entry to updat
- * @param pos bit position to update
+ * @param thread_index thread index (= bit position) to update
  * @param val value to set the bit to
  */
-void update_sent(struct msg_entry *entry, int pos, bool val)
+void update_sent(struct msg_entry *entry, int thread_index, bool val)
 {
 	/* change message status to sent */
-	if (val) {
-		pthread_rwlock_wrlock(&entry->sent_lock);
-		entry->sent |= (1 << pos);
-		pthread_rwlock_unlock(&entry->sent_lock);
-	} else {
-		pthread_rwlock_wrlock(&entry->sent_lock);
-		entry->sent &= ~(1 << pos);
-		pthread_rwlock_unlock(&entry->sent_lock);
-	}
+	pthread_rwlock_wrlock(&entry->sent_lock);
+	update_bit(&entry->sent, thread_index, val);
+	pthread_rwlock_unlock(&entry->sent_lock);
 }
-
 
 /* TODO
  * - fix for clock_gettime()
