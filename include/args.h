@@ -4,12 +4,11 @@
 #include <stdbool.h>
 #include <getopt.h>
 
-/* TODO decide on reasonable defaults, minimum, and maximum values */
 #define DEFAULT_NUM_WORKERS 30 ///< default number of client worker threads
 #define DEFAULT_GRACE_PERIOD 1 ///< default grace period in seconds
 
-#define MIN_NUM_WORKERS 1
-#define MAX_NUM_WORKERS 50
+#define MIN_NUM_WORKERS 1  ///< need at least one thread to handle receivers
+#define MAX_NUM_WORKERS 64  ///< bounded by `sent` field `struct msg_entry`
 
 #define MIN_GRACE_PERIOD 0
 #define MAX_GRACE_PERIOD 5

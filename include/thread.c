@@ -1,3 +1,5 @@
+/// @file
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -6,8 +8,13 @@
 #include "thread.h"
 #include "timestamp.h"
 
-/* TODO docstrings */
-
+/**
+ * @brief Initialise worker threads
+ * @param workers pointer to array of worker structs
+ * @param num_workers number of workers stored in `workers`
+ * @details Allocate memory for `workers`, then initialise the state values for
+ * each worker
+ */
 void init_workers(struct worker **workers, int num_workers)
 {
 	/* allocate thread array */
@@ -29,12 +36,18 @@ void init_workers(struct worker **workers, int num_workers)
 	}
 }
 
+/**
+ * @brief Find a non-busy thread
+ * @param workers pointer to array of worker structs
+ * @param num_workers number of workers stored in `workers`
+ * @details A "non-busy" thread is either "available" (space exists but not yet
+ created) or "ready" (thread created and waiting).
+ * @return Thread index of non-busy worker thread on success, -1 on error
+ */
 int find_thread(struct worker **workers, int num_workers)
 {
 	for (int i = 0; i < num_workers; i++) {
-		/* FIXME */
-		if ((*workers)[i].status == THREAD_READY
-				|| (*workers)[i].status == THREAD_AVAILABLE) {
+		if ((*workers)[i].status != THREAD_BUSY) {
 			return i;
 		}
 	}

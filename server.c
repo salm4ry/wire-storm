@@ -138,15 +138,14 @@ void *dst_worker(void *data)
 			pthread_mutex_unlock(&msg_lock);
 		}
 
-		if (!current->sent[args->thread_index] &&
+		if (!is_sent(current, args->thread_index) &&
 				can_forward(current, args->timestamp,
 					init_args.grace_period)) {
 			/* send message to the assigned file descriptor */
 			pr_debug("thread %d sending a %d-byte message\n",
 					args->thread_index, current->msg->len);
 			bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
-			/* TODO update bitmask */
-			current->sent[args->thread_index] = true;
+			update_sent(current, args->thread_index, true);
 		}
 
 		pthread_mutex_lock(&msg_lock);
@@ -164,7 +163,8 @@ void *dst_worker(void *data)
 				pthread_cond_wait(&args->cond, &args->lock);
 			}
 			/* reset sent status for new connection */
-			current->sent[args->thread_index] = false;
+			update_sent(current, args->thread_index, false);
+
 			pthread_mutex_unlock(&args->lock);
 			pr_debug("thread %d got new fd %d\n",
 					args->thread_index, args->client_fd);
