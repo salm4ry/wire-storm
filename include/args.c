@@ -6,7 +6,7 @@
 #include "args.h"
 #include "log.h"
 
-static char *short_opts = "ehn:g:";  ///< short option characters
+static char *short_opts = "ehn:b:";  ///< short option characters
 
 /**
  * @brief Long options
@@ -16,7 +16,7 @@ static struct option long_opts[]  = {
 	{"help", no_argument, NULL, 'h'},
 	{"extended", no_argument, NULL, 'e'},
 	{"num-workers", required_argument, NULL, 'n'},
-	{"grace-period", required_argument, NULL, 'g'},
+	{"backlog", required_argument, NULL, 'b'},
 	/* terminate option list with zeroed-struct */
 	{NULL, 0, NULL, 0}
 };
@@ -30,7 +30,7 @@ void usage(char *prog_name)
 	printf("usage: %s [OPTIONS]\n"
 	       "-e, --extended: use extended CTMP\n"
 	       "-n, --num-workers <num_workers>: max number of client worker threads to use\n"
-	       "-g, --grace-period <grace_period>: message grace period length in seconds\n"
+	       "-b, --backlog <grace_period>: backlog size for listen(2) \n"
 	       "-h, --help: print this message and exit\n", basename(prog_name));
 }
 
@@ -42,7 +42,7 @@ void set_default_args(struct args *args)
 {
 	args->extended = false;
 	args->num_workers = DEFAULT_NUM_WORKERS;
-	args->grace_period = DEFAULT_GRACE_PERIOD;
+	args->backlog = DEFAULT_BACKLOG;
 }
 
 /**
@@ -76,13 +76,13 @@ void parse_args(int argc, char *argv[], struct args *args)
 				exit(EXIT_FAILURE);
 			}
 			break;
-		case 'g':
+		case 'b':
 			tmp = atoi(optarg);
-			if (tmp >= MIN_GRACE_PERIOD && tmp <= MAX_GRACE_PERIOD) {
-				args->grace_period = tmp;
+			if (tmp >= MIN_BACKLOG && tmp <= MAX_BACKLOG) {
+				args->backlog = tmp;
 			} else {
-				pr_err("invalid grace period %d (must be between %d and %d)\n",
-						tmp, MIN_GRACE_PERIOD, MAX_GRACE_PERIOD);
+				pr_err("invalid backlog %d (must be between %d and %d)\n",
+						tmp, MIN_BACKLOG, MAX_BACKLOG);
 				exit(EXIT_FAILURE);
 			}
 			break;

@@ -54,7 +54,7 @@ void src_server()
 	struct ctmp_msg *(*parse_func)(int) = NULL;   ///< CTMP message parsing function
 	struct msg_entry *new_msg_entry = NULL;
 
-	src_server = server_create(SRC_PORT);
+	src_server = server_create(SRC_PORT, init_args.backlog);
 	if (!src_server) {
 		pr_err("error setting up server on port %d\n", SRC_PORT);
 		exit(EXIT_FAILURE);
@@ -196,7 +196,7 @@ void *dst_server()
 	struct timespec client_timestamp;
 	struct server_socket *dst_server = NULL;
 
-	dst_server = server_create(DST_PORT);
+	dst_server = server_create(DST_PORT, init_args.backlog);
 	if (!dst_server) {
 		pr_err("error setting up server on port %d\n", DST_PORT);
 		exit(EXIT_FAILURE);
@@ -285,9 +285,9 @@ int main(int argc, char *argv[])
 	/* parse command-line arguments */
 	set_default_args(&init_args);
 	parse_args(argc, argv, &init_args);
-	pr_debug("extended = %d, num_workers = %d, grace_period = %d\n",
+	pr_debug("extended = %d, num_workers = %d, backlog = %d\n",
 			init_args.extended, init_args.num_workers,
-			init_args.grace_period);
+			init_args.backlog);
 
 	/* initialise client and message queues */
 	TAILQ_INIT(&msg_queue_head);

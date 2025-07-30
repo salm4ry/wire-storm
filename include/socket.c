@@ -34,10 +34,11 @@ struct sockaddr_in server_address(int port)
 /**
  * @brief Create socket server listening on a given port
  * @param port TCP port to listen on
+ * @param backlog max pending connection queue length for listen()
  * @return pointer to `struct server_socket` (including file descriptor) on
  * success, NULL on error
  */
-struct server_socket *server_create(int port)
+struct server_socket *server_create(int port, int backlog)
 {
 	int opt = 1;
 	struct server_socket *server;
@@ -71,7 +72,7 @@ struct server_socket *server_create(int port)
 
 	/* listen for connections
 	 * backlog = max number of pending connections */
-	if (listen(server->fd, BACKLOG) < 0) {
+	if (listen(server->fd, backlog) < 0) {
 		perror("listen");
 		goto cleanup;
 	}
