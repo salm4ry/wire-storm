@@ -1,5 +1,6 @@
 /// @file
 
+#include <stdbool.h>
 #include <netinet/in.h>
 
 #define SRC_PORT 33333  ///< source server port
@@ -19,3 +20,4 @@ struct sockaddr_in server_address(int port);
 struct server_socket *server_create(int port);
 int server_accept(int server_fd, struct sockaddr_in address);
 void server_close(struct server_socket *server);
+bool is_alive(int fd);

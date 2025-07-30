@@ -116,3 +116,23 @@ void server_close(struct server_socket *server)
 	close(server->fd);
 	free(server);
 }
+
+/**
+ * @brief Detect whether a socket connection is alive
+ * @param fd socket file descriptor
+ * @return true if the connection is still alive, false if the client has closed
+ * the connection
+ */
+bool is_alive(int fd)
+{
+	char test_buffer;
+
+	/* based on: http://stefan.buettcher.org/cs/conn_closed.html
+	 * MSG_PEEK: return data without removing it from the queue
+	 * MSG_DONTWAIT: enable nonblocking
+	 *
+	 * recv() returns 0 on error
+	 */
+	return (recv(fd, &test_buffer, sizeof(test_buffer),
+				MSG_PEEK | MSG_DONTWAIT) != 0);
+}

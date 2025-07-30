@@ -68,21 +68,14 @@ void src_server()
 	}
 
 	while (1) {
-		char test_buffer;
-
 		src_socket = server_accept(src_server->fd, src_server->addr);
 		if (src_socket < 0) {
 			pr_err("error accepting connection to port %d\n", SRC_PORT);
 			exit(-src_socket);
 		}
 
-		/* keep parsing messages while the connection is open
-		 *
-		 * based on: http://stefan.buettcher.org/cs/conn_closed.html
-		 * MSG_PEEK: return data without removing it from the queue
-		 * MSG_DONTWAIT: enable nonblocking */
-		while (recv(src_socket, &test_buffer, sizeof(test_buffer),
-					MSG_PEEK | MSG_DONTWAIT) != 0) {
+		/* keep parsing messages while the connection is open */
+		while (is_alive(src_socket)) {
 			current_msg = parse_func(src_socket);
 			if (current_msg) {
 				init_msg_entry(&new_msg_entry, current_msg,
@@ -136,6 +129,13 @@ void *dst_worker(void *data)
 			}
 
 			pthread_mutex_unlock(&msg_lock);
+		}
+
+		/* check the connection is open before attempting to send */
+		if (!is_alive(args->client_fd)) {
+			pr_debug("thread %d: client connection closed\n",
+					args->thread_index);
+			goto conn_closed;
 		}
 
 		if (!is_sent(current, args->thread_index) &&
