@@ -40,3 +40,8 @@ struct worker_list {
 
 void init_workers(struct worker_list *list, int num_workers);
 int find_thread(struct worker_list *workers);
+
+void init_thread_info(struct worker_list *list, int thread_index,
+		int client_fd, struct timespec client_ts);
+void update_thread_info(struct worker_list *list, int thread_index,
+		int client_fd, struct timespec client_ts);

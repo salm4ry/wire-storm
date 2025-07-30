@@ -146,7 +146,8 @@ void *dst_worker(void *data)
 			/* TODO remove */
 #ifdef DEBUG
 			if (!is_sent(current, args->thread_index)) {
-				pr_debug("thread %d: can't forward, message too old\n");
+				pr_debug("thread %d: can't forward, message too old\n",
+						args->thread_index);
 			}
 #endif
 		}
@@ -196,7 +197,7 @@ conn_closed:
 void *dst_server()
 {
 	int res, new_fd, thread_index;
-	struct timespec client_timestamp;
+	struct timespec client_ts;
 	struct server_socket *dst_server = NULL;
 
 	dst_server = server_create(DST_PORT, init_args.backlog);
@@ -214,7 +215,7 @@ void *dst_server()
 		}
 
 		/* set timestamp to be time of accepting the connection */
-		get_clock_time(&client_timestamp);
+		get_clock_time(&client_ts);
 
 		thread_index = find_thread(&dst);
 		while (thread_index < 0) {
@@ -226,20 +227,7 @@ void *dst_server()
 		/* check thread state */
 		switch (dst.workers[thread_index].status) {
 		case THREAD_AVAILABLE:
-			/* initialise thread arguments before creating */
-			pthread_mutex_init(&dst.workers[thread_index].args.lock, NULL);
-			pthread_cond_init(&dst.workers[thread_index].args.cond, NULL);
-			dst.workers[thread_index].args.client_fd = new_fd;
-
-			/* update status
-			 * TODO separate into function */
-			dst.workers[thread_index].status = THREAD_BUSY;
-			dst.workers[thread_index].args.status = &dst.workers[thread_index].status;
-			pthread_mutex_lock(&dst.mask.lock);
-			update_bit(&dst.mask.data, thread_index, true);
-			pthread_mutex_unlock(&dst.mask.lock);
-
-			dst.workers[thread_index].args.timestamp = client_timestamp;
+			init_thread_info(&dst, thread_index, new_fd, client_ts);
 
 			res = pthread_create(&dst.workers[thread_index].thread,
 					NULL, dst_worker, &dst.workers[thread_index].args);
@@ -250,20 +238,7 @@ void *dst_server()
 			break;
 		case THREAD_READY:
 			/* reassign file descriptor and signal */
-			pthread_mutex_lock(&dst.workers[thread_index].args.lock);
-			dst.workers[thread_index].args.client_fd = new_fd;
-
-			/* update status
-			 * TODO separate into function */
-			dst.workers[thread_index].status = THREAD_BUSY;
-			dst.workers[thread_index].args.status = &dst.workers[thread_index].status;
-			pthread_mutex_lock(&dst.mask.lock);
-			update_bit(&dst.mask.data, thread_index, true);
-			pthread_mutex_unlock(&dst.mask.lock);
-
-			dst.workers[thread_index].args.timestamp = client_timestamp;
-			pthread_cond_signal(&dst.workers[thread_index].args.cond);
-			pthread_mutex_unlock(&dst.workers[thread_index].args.lock);
+			update_thread_info(&dst, thread_index, new_fd, client_ts);
 			break;
 		default:
 			break;

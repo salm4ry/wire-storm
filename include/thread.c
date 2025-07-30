@@ -46,7 +46,7 @@ void init_workers(struct worker_list *list, int num_workers)
 
 /**
  * @brief Find a non-busy thread
- * @param list pointer to array of worker thread list struct
+ * @param list pointer to worker thread list struct
  * @details A "non-busy" thread is either "available" (space exists but not yet
  created) or "ready" (thread created and waiting).
  * @return Thread index of non-busy worker thread on success, -1 on error
@@ -68,4 +68,70 @@ int find_thread(struct worker_list *list)
 
 	/* no available thread */
 	return -1;
+}
+
+/**
+ * @brief Initialise worker thread arguments and status
+ * @param list pointer to worker thread list struct
+ * @param thread_index index of thread to use
+ * @param client_fd client file descriptor to use
+ * @param client_ts client timestamp to use
+ * @details A worker thread is ready to be created after this function completes
+ */
+void init_thread_info(struct worker_list *list, int thread_index,
+		int client_fd, struct timespec client_ts)
+{
+	struct worker *thread;
+	thread = &(list->workers[thread_index]);
+
+	/* initialise thread arguments */
+	pthread_mutex_init(&thread->args.lock, NULL);
+	pthread_cond_init(&thread->args.cond, NULL);
+	thread->args.client_fd = client_fd;
+
+	// thread->status = THREAD_BUSY;
+	*(thread->args.status) = THREAD_BUSY;
+
+	pthread_mutex_lock(&list->mask.lock);
+	update_bit(&list->mask.data, thread_index, true);
+	pthread_mutex_unlock(&list->mask.lock);
+
+	thread->args.timestamp = client_ts;
+}
+
+/**
+ * @brief Update worker thread arguments and status
+ * @param list pointer to worker thread list struct
+ * @param thread_index index of thread to update
+ * @param client_fd new client file descriptor to set
+ * @param client_ts new client timestamp to set
+ * @details Update thread information then `pthread_cond_signal()` to alert the
+ * corresponding thread of its new work
+ */
+void update_thread_info(struct worker_list *list, int thread_index,
+		int client_fd, struct timespec client_ts)
+{
+	struct worker *thread;
+
+	thread = &(list->workers[thread_index]);
+
+	/* thread already exists: update status and arguments */
+	pthread_mutex_lock(&thread->args.lock);
+
+	/* set new client file descriptor */
+	thread->args.client_fd = client_fd;
+
+	/* update status fields (per-thread and global) */
+	thread->status = THREAD_BUSY;
+	thread->args.status = &thread->status;
+	pthread_mutex_lock(&list->mask.lock);
+	update_bit(&list->mask.data, thread_index, true);
+	pthread_mutex_unlock(&list->mask.lock);
+
+	/* update timestamp */
+	thread->args.timestamp = client_ts;
+
+	/* signal to thread that there's new work */
+	pthread_cond_signal(&thread->args.cond);
+	pthread_mutex_unlock(&thread->args.lock);
 }
