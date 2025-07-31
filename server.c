@@ -182,7 +182,9 @@ conn_closed:
 					args->thread_index, args->client_fd);
 		}
 
-		prev = current;
+		if (current) {
+			prev = current;
+		}
 		current = next;
 	}
 
@@ -250,7 +252,49 @@ void *dst_server()
 
 void *cleanup_work()
 {
+	struct msg_entry *current = NULL, *next = NULL;
+	struct timespec now, msg_plus_ttl;
+
 	/* TODO clean up messages in the queue that are past their TTL */
+	while (true) {
+		if (TAILQ_EMPTY(&msg_queue_head)) {
+			printf("waiting for entries...\n");
+			pthread_mutex_lock(&msg_lock);
+			while (TAILQ_EMPTY(&msg_queue_head)) {
+				pthread_cond_wait(&msg_cond, &msg_lock);
+			}
+			current = TAILQ_FIRST(&msg_queue_head);
+			pthread_mutex_unlock(&msg_lock);
+		} else if (!current) {
+			/* if we've reached the end, go back to the start */
+			pthread_mutex_lock(&msg_lock);
+			current = TAILQ_FIRST(&msg_queue_head);
+			pthread_mutex_unlock(&msg_lock);
+		}
+
+		pthread_mutex_lock(&msg_lock);
+		/* get next message */
+		next = TAILQ_NEXT(current, entries);
+		pthread_mutex_unlock(&msg_lock);
+
+		get_clock_time(&now);
+		msg_plus_ttl = current->timestamp;
+		msg_plus_ttl.tv_sec += init_args.ttl;
+
+		/* remove and free the entry if its TTL has passed */
+		if (compare_times(&msg_plus_ttl, &now) && current->msg) {
+			printf("freeing %d-byte message...\n",
+					current->msg->len);
+			pthread_mutex_lock(&msg_lock);
+			free_ctmp_msg(current->msg);
+			current->msg = NULL;
+			pthread_mutex_unlock(&msg_lock);
+			printf("freed message!\n");
+		}
+
+		current = next;
+	}
+
 
 	return NULL;
 }
@@ -263,9 +307,9 @@ int main(int argc, char *argv[])
 	/* parse command-line arguments */
 	set_default_args(&init_args);
 	parse_args(argc, argv, &init_args);
-	pr_debug("extended = %d, num_workers = %d, backlog = %d\n",
+	pr_debug("extended = %d, num_workers = %d, backlog = %d, ttl = %d\n",
 			init_args.extended, init_args.num_workers,
-			init_args.backlog);
+			init_args.backlog, init_args.ttl);
 
 	/* initialise client and message queues */
 	TAILQ_INIT(&msg_queue_head);
