@@ -258,7 +258,7 @@ void *cleanup_work()
 	/* TODO clean up messages in the queue that are past their TTL */
 	while (true) {
 		if (TAILQ_EMPTY(&msg_queue_head)) {
-			printf("waiting for entries...\n");
+			pr_debug("cleanup: waiting for entries...\n");
 			pthread_mutex_lock(&msg_lock);
 			while (TAILQ_EMPTY(&msg_queue_head)) {
 				pthread_cond_wait(&msg_cond, &msg_lock);
@@ -283,13 +283,12 @@ void *cleanup_work()
 
 		/* remove and free the entry if its TTL has passed */
 		if (compare_times(&msg_plus_ttl, &now) && current->msg) {
-			printf("freeing %d-byte message...\n",
+			pr_debug("cleanup: freeing %d-byte message\n",
 					current->msg->len);
 			pthread_mutex_lock(&msg_lock);
 			free_ctmp_msg(current->msg);
 			current->msg = NULL;
 			pthread_mutex_unlock(&msg_lock);
-			printf("freed message!\n");
 		}
 
 		current = next;
