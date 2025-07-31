@@ -45,3 +45,7 @@ make
       flags
         - e.g. `compare_times()`: improvement from `-O2`, no difference betweeen `-O2` and `-O3`
     - [ ] `inline` smaller functions?
+- [ ] documentation & readability
+    - [ ] finalise variable, function, struct names
+    - [ ] polish doxygen comments
+    - [ ] manpage
