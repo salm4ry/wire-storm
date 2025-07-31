@@ -32,25 +32,58 @@ void init_msg_entry(struct msg_entry **entry, struct ctmp_msg *msg,
 	/* init sent status bitmask and associated lock */
 	(*entry)->sent = 0;
 	pthread_rwlock_init(&(*entry)->sent_lock, NULL);
-
-	/*
-	(*entry)->sent = malloc(num_threads * sizeof(bool));
-	if (!(*entry)->sent) {
-		perror("malloc");
-		exit(errno);
-	}
-	*/
 }
 
 /**
- * @brief Free a message queue entry
- * @param entry entry to free
+ * @brief Get the next message queue entry to process
+ * @param head message queue head
+ * @param lock message queue lock
+ * @param cond message queue condition variable
+ * @param current current entry to process
+ * @param prev previous message queue entry
+ * @param to_start whether to return to the start of the queue or go to the next
+ * entry (after `prev`)
+ * @return `current` (unchanged) if it is not NULL, the first entry of the queue
+ * if `to_start = true`, the entry after `prev` otherwise
+ * @details Wait for the desired message queue to become available (added to the
+ * queue) if `current` is NULL
  */
-void free_msg_entry(struct msg_entry *entry)
+struct msg_entry *get_msg_entry(struct msg_queue *head, pthread_mutex_t *lock,
+		pthread_cond_t *cond, struct msg_entry *current,
+		struct msg_entry *prev, bool to_start)
 {
-	free_ctmp_msg(entry->msg);
-	/* free(entry->sent); */
-	free(entry);
+	struct msg_entry *new_entry = NULL;
+
+	if (TAILQ_EMPTY(head) || !current) {
+		pthread_mutex_lock(lock);
+		/* wait on different conditions depending on if the queue is
+		 * empty or we are just waiting for the next message */
+		if (TAILQ_EMPTY(head) || !prev) {
+			/* wait for first entry */
+			while (TAILQ_EMPTY(head)) {
+				pthread_cond_wait(cond, lock);
+			}
+			new_entry = TAILQ_FIRST(head);
+		} else {
+			/* wait for next entry */
+			while (!TAILQ_NEXT(prev, entries)) {
+				pthread_cond_wait(cond, lock);
+			}
+
+			/* set current based on to_start argument */
+			if (to_start) {
+				new_entry = TAILQ_FIRST(head);
+			} else {
+				new_entry = TAILQ_NEXT(prev, entries);
+			}
+		}
+		pthread_mutex_unlock(lock);
+	} else {
+		/* leave unchanged */
+		new_entry = current;
+	}
+
+	return new_entry;
 }
 
 /**
