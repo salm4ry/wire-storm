@@ -17,8 +17,6 @@
 #include "include/thread.h"
 #include "include/timestamp.h"
 
-#include "assert.h"
-
 /**
  * @brief Array of client worker thread structures
  * @details Memory is allocated for `num_workers` threads when the server
@@ -105,7 +103,6 @@ void *dst_worker(void *data)
 	while (1) {
 		current = get_msg_entry(&msg_queue_head, &msg_lock, &msg_cond,
 				current, prev, false);
-		assert(current);
 
 		/* check the connection is open before attempting to send */
 		if (!is_alive(args->client_fd)) {
@@ -235,7 +232,6 @@ void *cleanup_work()
 	while (true) {
 		current = get_msg_entry(&msg_queue_head, &msg_lock, &msg_cond,
 				current, prev, true);
-		assert(current);
 
 		if (current->msg) {
 			get_clock_time(&now);
