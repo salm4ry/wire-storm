@@ -1,0 +1,41 @@
+.TH man 7 ws_server
+
+.SH NAME
+ws_server \- Operation WIRE STORM proxy server
+
+.SH SYNOPSIS
+ws_server [\fIOPTIONS\fP]
+
+.SH DESCRIPTION
+
+.SH OPTIONS
+
+.TP
+.B -e, --extended
+use extended CTMP (includes options and checksum fields)
+
+.TP
+.B -n, --num-workers <NUM>
+maximum number of client worker threads to use. Accepts a value between 1 and
+64.
+
+.TP
+.B -b, --backlog \fP<\fINUM\fP>
+backlog length for \fBlisten\fP(2). Accepts a value between 1 and 64. Ensure that
+\fI/proc/sys/net/core/somaxconn\fP is set to at least 64 (see \fBlisten\fP(2)
+for details).
+
+.TP
+.B -t, --ttl \fP<\fIDURATION\fP>
+message time to live in seconds. The cleanup worker frees message data after
+this has passed.
+
+.TP
+.B -h, --help
+display help and exit
+
+.SH AUTHOR
+\" TODO
+
+.SH COPYRIGHT
+\" TODO license?

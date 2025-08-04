@@ -25,6 +25,7 @@ include_dir := $(top_dir)/include
 include := $(wildcard $(include_dir)/*.c)
 doc_dir := $(top_dir)/doc
 
+man_page := man/ws_server.roff
 doxyfile = doc/Doxyfile
 
 all: $(obj)
@@ -47,3 +48,7 @@ docs:
 .PHONY: clean-docs
 clean-docs:
 	rm -rf $(doc_dir)/html $(doc_dir)/latex
+
+.PHONY: man
+man:
+	man -l $(man_page)

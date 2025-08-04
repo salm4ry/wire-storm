@@ -34,6 +34,8 @@ make
 - `-t, --ttl <DURATION>`: message time to live in seconds
 - `-h, --help`: print usage and exit
 
+A manpage is also available (see `make man`).
+
 ## To Do
 - [x] prefix log messages with timestamp
 - [ ] own test cases
