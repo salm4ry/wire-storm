@@ -89,6 +89,7 @@ void src_server()
 			}
 		}
 
+		/* close old src connection */
 		pr_debug("closing src connection...\n");
 		close(src_socket);
 	}
@@ -134,6 +135,9 @@ void *dst_worker(void *data)
 
 		if (bytes_sent < 0) {
 conn_closed:
+			/* close old client fd */
+			close(args->client_fd);
+
 			pr_debug("thread %d: waiting for new fd...\n",
 					args->thread_index);
 			/* send failed, wait for new fd */
@@ -223,7 +227,7 @@ void *dst_server()
 	return NULL;
 }
 
-void *cleanup_work()
+void *cleanup_worker()
 {
 	struct msg_entry *current = NULL, *prev = NULL, *next = NULL;
 	struct timespec now, msg_plus_ttl;
@@ -288,7 +292,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* create message cleanup thread */
-	res = pthread_create(&cleanup_thread, NULL, &cleanup_work, NULL);
+	res = pthread_create(&cleanup_thread, NULL, &cleanup_worker, NULL);
 	if (res != 0) {
 		perror("pthread_create");
 		exit(res);
