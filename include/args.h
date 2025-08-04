@@ -7,8 +7,8 @@
 #define DEFAULT_NUM_WORKERS 32 ///< default number of client worker threads
 #define MIN_NUM_WORKERS 1  ///< need at least one thread to handle receivers
 #define MAX_NUM_WORKERS 64  ///< bounded by `sent` field `struct msg_entry`
-			    ///
-#define DEFAULT_BACKLOG 16     ///< default backlog for listen()
+
+#define DEFAULT_BACKLOG DEFAULT_NUM_WORKERS  ///< default backlog for listen()
 /* TODO change min/max backlog? */
 #define MIN_BACKLOG MIN_NUM_WORKERS
 #define MAX_BACKLOG MAX_NUM_WORKERS

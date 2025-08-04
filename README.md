@@ -22,6 +22,10 @@ make
 
 ### Usage
 
+> [!NOTE]
+> Make sure that `/proc/sys/net/core/somaxconn` is set to at least 64 (the
+> server program's maximum backlog value)- see `listen(2)` for details.
+
 `./server [OPTIONS]`
 
 - `-e, --extended`: use extended CTMP
@@ -40,6 +44,8 @@ make
 - [x] keep messages in the queue for a given "TTL" then remove them
   in order to avoid incorrect messages being sent
 - [ ] performance analysis (`perf` etc.)
+    - [x] busy cleanup vs waiting
+    - [ ] bitmasks vs byte arrays (find original commits)
 - [ ] optimisations
     - [ ] compile `include/` files into libraries and use compiler optimisation
       flags
