@@ -31,7 +31,7 @@ make
 - `-h, --help`: print usage and exit
 
 ## To Do
-- [ ] prefix log messages with timestamp
+- [x] prefix log messages with timestamp
 - [ ] own test cases
     - [ ] invalid length
     - [ ] invalid padding
