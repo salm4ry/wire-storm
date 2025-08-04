@@ -31,13 +31,6 @@ struct msg_queue msg_queue_head;
 
 struct args init_args;
 
-/*
- * TODO
- * - when accepting a new receiver, wait until a thread becomes available if
- *   there aren't any available
- * 	-> exponential backoff while waiting
- */
-
 /**
  * @brief Run source server
  * @details Accept a single client connection and parse messages from it,
@@ -175,7 +168,7 @@ conn_closed:
  */
 void *dst_server()
 {
-	int res, new_fd, thread_index;
+	int res, new_fd, thread_index, delay = 1;
 	struct timespec client_ts;
 	struct server_socket *dst_server = NULL;
 
@@ -198,8 +191,10 @@ void *dst_server()
 
 		thread_index = find_thread(&dst);
 		while (thread_index < 0) {
-			pr_err("no thread available, retrying\n");
-			/* TODO exponential backoff */
+			pr_err("no thread available, retrying...\n");
+			/* exponential backoff */
+			sleep(delay);
+			delay *= 2;
 			thread_index = find_thread(&dst);
 		}
 
