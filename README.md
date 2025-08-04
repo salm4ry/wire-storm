@@ -17,7 +17,7 @@ make
 ## Running
 
 ```bash
-./server
+./ws_server
 ```
 
 ### Usage
@@ -26,7 +26,7 @@ make
 > Make sure that `/proc/sys/net/core/somaxconn` is set to at least 64 (the
 > server program's maximum backlog value)- see `listen(2)` for details.
 
-`./server [OPTIONS]`
+`./ws_server [OPTIONS]`
 
 - `-e, --extended`: use extended CTMP
 - `-n, --num-workers <NUM>`: max number of client worker threads to use
