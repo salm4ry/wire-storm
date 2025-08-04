@@ -2,17 +2,12 @@
 
 ## Compilation
 
+Basic compilation:
 ```bash
 make
 ```
 
-### Environment Variables
-
-| variable | `=1` |
-| -- | -- |
-| `SCAN_BUILD` | compile with `scan-build` for static analysis |
-| `LLVM` | use `clang` instead of `gcc` for compilation |
-| `DEBUG` | compile in debug mode (`-DDEBUG`) |
+See `make help` for details of each Makefile target
 
 ## Running
 

@@ -35,6 +35,23 @@ all: $(obj)
 			$(error $(comm) not found, consider installing)))
 	$(CC) $< $(include) -o $@ $(CFLAGS)
 
+.PHONY: help
+help:
+	@echo 'Compilation:'
+	@echo '  all  - build the server program'
+	@echo 'Environment Variables:'
+	@echo '  SCAN_BUILD - compile with scan-build for static analysis'
+	@echo '  LLVM       - use clang instead of gcc for compilation'
+	@echo '  DEBUG      - compile in debug mode (-DDEBUG)'
+	@echo 'Documentation:'
+	@echo '  docs       - generate docs with doxygen'
+	@echo '  man        - view manpage'
+	@echo 'Cleaning:'
+	@echo '  clean      - remove server binary'
+	@echo '  clean-docs - clean generated documentation'
+	@echo 'Other:'
+	@echo '  help       - print this help and exit'
+
 .PHONY: clean
 clean:
 	rm -f $(obj)
