@@ -44,7 +44,7 @@ help:
 	@echo '  LLVM       - use clang instead of gcc for compilation'
 	@echo '  DEBUG      - compile in debug mode (-DDEBUG)'
 	@echo 'Documentation:'
-	@echo '  docs       - generate docs with doxygen'
+	@echo '  docs       - generate docs (HTML and LaTeX) with doxygen'
 	@echo '  man        - view manpage'
 	@echo 'Cleaning:'
 	@echo '  clean      - remove server binary'
