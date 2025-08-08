@@ -2,3 +2,5 @@ doc/html/
 doc/latex/
 *zip
 __pycache__
+*o
+*so
