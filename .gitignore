@@ -4,3 +4,4 @@ doc/latex/
 __pycache__
 *o
 *so
+compile_commands.json
