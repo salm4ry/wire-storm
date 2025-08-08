@@ -8,7 +8,6 @@ ifeq ($(SCAN_BUILD), 1)
 	CC := scan-build $(CC)
 endif
 
-# NOTE add additional flags here
 CFLAGS = -ggdb -Wall -Wpedantic
 
 # enable debug logging
@@ -21,19 +20,29 @@ src := $(wildcard *.c)
 obj := $(src:.c=)
 
 top_dir := $(PWD)
-include_dir := $(top_dir)/include
-include_files := $(wildcard $(include_dir)/*.c)
+#include_dir := $(top_dir)/include
+#include_files := $(wildcard $(include_dir)/*.c)
+
+lib_dir := $(top_dir)/lib
+lib := $(lib_dir)/libwirestorm.so
 doc_dir := $(top_dir)/doc
 
 man_page := man/ws_server.roff
 doxyfile = doc/Doxyfile
 
 all: $(obj)
-% : %.c $(include_files)
+
+# from gcc(1):
+# -L: add directory to list of directories to be searched for -l (libraries)
+# -I: add directory to list of directories to be searched for header files
+% : %.c $(lib)
 	$(foreach comm,$(CC),\
 		$(if $(shell command -v $(comm) 2>/dev/null),,\
 			$(error $(comm) not found, consider installing)))
-	$(CC) $< $(include_files) -o $@ $(CFLAGS)
+	$(CC) -Llib -Ilib $< -o $@ $(CFLAGS) -lwirestorm
+
+$(lib):
+	cd $(lib_dir) && make
 
 .PHONY: help
 help:
@@ -47,14 +56,19 @@ help:
 	@echo '  docs       - generate docs (HTML and LaTeX) with doxygen'
 	@echo '  man        - view manpage'
 	@echo 'Cleaning:'
-	@echo '  clean      - remove server binary'
+	@echo '  clean      - remove all binaries (including those in lib/)'
 	@echo '  clean-docs - clean generated documentation'
 	@echo 'Other:'
 	@echo '  help       - print this help and exit'
 
+.PHONY: run
+run:
+	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(lib_dir) ./$(obj)
+
 .PHONY: clean
 clean:
 	rm -f $(obj)
+	cd $(lib_dir) && make clean
 
 
 .PHONY: docs

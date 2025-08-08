@@ -9,13 +9,13 @@
 #include <pthread.h>
 #include <sys/queue.h>
 
-#include "include/args.h"
-#include "include/log.h"
-#include "include/socket.h"
-#include "include/ctmp.h"
-#include "include/msg_queue.h"
-#include "include/thread.h"
-#include "include/timestamp.h"
+#include "args.h"
+#include "log.h"
+#include "socket.h"
+#include "ctmp.h"
+#include "msg_queue.h"
+#include "thread.h"
+#include "timestamp.h"
 
 /**
  * @brief Array of client worker thread structures
