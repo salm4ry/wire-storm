@@ -22,18 +22,18 @@ obj := $(src:.c=)
 
 top_dir := $(PWD)
 include_dir := $(top_dir)/include
-include := $(wildcard $(include_dir)/*.c)
+include_files := $(wildcard $(include_dir)/*.c)
 doc_dir := $(top_dir)/doc
 
 man_page := man/ws_server.roff
 doxyfile = doc/Doxyfile
 
 all: $(obj)
-% : %.c $(include)
+% : %.c $(include_files)
 	$(foreach comm,$(CC),\
 		$(if $(shell command -v $(comm) 2>/dev/null),,\
 			$(error $(comm) not found, consider installing)))
-	$(CC) $< $(include) -o $@ $(CFLAGS)
+	$(CC) $< $(include_files) -o $@ $(CFLAGS)
 
 .PHONY: help
 help:
