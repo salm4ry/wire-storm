@@ -1,19 +1,4 @@
-ifeq ($(LLVM), 1)
-	CC := clang
-else
-	CC := gcc
-endif
-
-ifeq ($(SCAN_BUILD), 1)
-	CC := scan-build $(CC)
-endif
-
-CFLAGS = -ggdb -Wall -Wpedantic
-
-# enable debug logging
-ifeq ($(DEBUG), 1)
-	CFLAGS := $(CFLAGS) -DDEBUG
-endif
+include common/Makefile
 
 # prog.c -> prog
 src := $(wildcard *.c)

@@ -1,22 +1,10 @@
-ifeq ($(LLVM), 1)
-	CC := clang
-else
-	CC := gcc
-endif
-
-ifeq ($(SCAN_BUILD), 1)
-	CC := scan-build $(CC)
-endif
+include ../common/Makefile
 
 # optimise library objects with -O2 since they contain frequently-used functions
-CFLAGS = -ggdb -Wall -Wpedantic -O2
-
-# enable debug logging
-ifeq ($(DEBUG), 1)
-	CFLAGS := $(CFLAGS) -DDEBUG
-endif
+CFLAGS := $(CFLAGS) -O2
 
 src := $(wildcard *.c)
+headers := $(wildcard *.h)
 obj := $(src:.c=.o)
 
 # top directory = parent directory
@@ -37,7 +25,7 @@ $(target): $(obj)
 	$(CC) $(CFLAGS) -shared -o $(target) $(obj)
 
 # create object files
-%.o: %.c
+%.o: %.c $(headers)
 	$(foreach comm,$(CC),\
 		$(if $(shell command -v $(comm) 2>/dev/null),,\
 			$(error $(comm) not found, consider installing)))
