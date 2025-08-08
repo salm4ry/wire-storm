@@ -36,7 +36,7 @@ struct args init_args;
  * @details Accept a single client connection and parse messages from it,
  * broadcasting to receivers when valid
  */
-void src_server()
+void src_server(void *data)
 {
 	int src_socket;
 	struct server_socket *src_server = NULL;
@@ -111,14 +111,6 @@ void *dst_worker(void *data)
 					args->thread_index, current->msg->len);
 			bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
 			update_sent(current, args->thread_index, true);
-		} else {
-			/* TODO remove */
-#ifdef DEBUG
-			if (!is_sent(current, args->thread_index)) {
-				pr_debug("thread %d: can't forward, message too old\n",
-						args->thread_index);
-			}
-#endif
 		}
 
 		pthread_mutex_lock(&msg_lock);
@@ -166,7 +158,7 @@ conn_closed:
  * @details Accept client connections and update the shared queue of client file
  * descriptors
  */
-void *dst_server()
+void *dst_server(void *data)
 {
 	int res, new_fd, thread_index, delay = 1;
 	struct timespec client_ts;
@@ -222,7 +214,7 @@ void *dst_server()
 	return NULL;
 }
 
-void *cleanup_worker()
+void *cleanup_worker(void *data)
 {
 	struct msg_entry *current = NULL, *prev = NULL, *next = NULL;
 	struct timespec now, msg_plus_ttl;
@@ -294,7 +286,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* run source server */
-	src_server();
+	src_server(NULL);
 
 	return EXIT_SUCCESS;
 }
