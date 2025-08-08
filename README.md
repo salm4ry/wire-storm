@@ -4,7 +4,7 @@
 
 Basic compilation:
 ```bash
-make
+$ make
 ```
 
 See `make help` for Makefile target details.
@@ -12,8 +12,23 @@ See `make help` for Makefile target details.
 ## Running
 
 ```bash
-./ws_server [OPTIONS]
+$ make run
 ```
+
+Specify command line arguments with `$ARGS` when using `make run`- e.g. to run
+in extended mode:
+
+```bash
+$ ARGS='-e' make run
+```
+
+Alternatively, ensure that `./lib` is in `$LD_LIBRARY_PATH`:
+
+```bash
+$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:./lib
+$ ./ws_server [OPTIONS]
+```
+
 
 ### Usage
 
@@ -29,15 +44,15 @@ configuration options.
 Original test suite:
 
 ```bash
-./ws-server &
-python3 wire-storm/tests.py
+$ ./ws-server &
+$ python3 wire-storm/tests.py
 ```
 
 Extended CTMP test suite:
 
 ```bash
-./ws-server -e &  # run in extended mode
-python3 wire-storm-reloaded-1.0.0/tests.py
+$ ./ws-server -e &  # run in extended mode
+$ python3 wire-storm-reloaded-1.0.0/tests.py
 ```
 
 ## Documentation
@@ -48,5 +63,5 @@ Generate HTML and LaTeX documentation available using `make docs` (uses
 To view the HTML documentation in a browser:
 
 ```bash
-firefox doc/html/index.html
+$ firefox doc/html/index.html
 ```
