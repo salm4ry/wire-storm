@@ -65,3 +65,7 @@ To view the HTML documentation in a browser:
 ```bash
 $ firefox doc/html/index.html
 ```
+
+## Licensing
+
+This project is licensed under GNU GPL 2.0.
