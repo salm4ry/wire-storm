@@ -7,7 +7,9 @@ ws_server \- Operation WIRE STORM proxy server
 ws_server [\fIOPTIONS\fP]
 
 .SH DESCRIPTION
-\" TODO
+CTMP proxy server supporting a single source client on port 33333 and multiple
+destination clients on port 44444. Forwards valid CTMP messages sent by the
+source client to the destination clients.
 
 .SH OPTIONS
 
@@ -17,19 +19,19 @@ use extended CTMP (includes options and checksum fields)
 
 .TP
 .B -n, --num-workers <NUM>
-maximum number of client worker threads to use. Accepts a value between 1 and
-64.
+maximum number of client worker threads to use. Default value 32. Accepts a
+value between 1 and 64.
 
 .TP
 .B -b, --backlog \fP<\fINUM\fP>
-backlog length for \fBlisten\fP(2). Accepts a value between 1 and 64. Ensure that
-\fI/proc/sys/net/core/somaxconn\fP is set to at least 64 (see \fBlisten\fP(2)
-for details).
+backlog length for \fBlisten\fP(2). Default value 32. Accepts a value between 1
+and 64. Ensure that \fI/proc/sys/net/core/somaxconn\fP is set to at least 64
+(see \fBlisten\fP(2) for details).
 
 .TP
 .B -t, --ttl \fP<\fIDURATION\fP>
 message time to live in seconds. The cleanup worker frees message data after
-this has passed. Accepts a value between 2 and 10.
+this has passed. Default value 5. Accepts a value between 2 and 10.
 
 .TP
 .B -h, --help
