@@ -17,6 +17,8 @@
 #include "thread.h"
 #include "timestamp.h"
 
+#define INITIAL_DELAY 1  ///< starting delay (seconds) when waiting for idle workers
+
 /**
  * @brief Array of client worker thread structures
  * @details Memory is allocated for `num_workers` threads when the server
@@ -160,7 +162,7 @@ conn_closed:
  */
 void *dst_server(void *data)
 {
-	int res, new_fd, thread_index, delay = 1;
+	int res, new_fd, thread_index, delay = INITIAL_DELAY;
 	struct timespec client_ts;
 	struct server_socket *dst_server = NULL;
 
