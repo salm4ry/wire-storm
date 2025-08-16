@@ -105,16 +105,16 @@ bool is_sent(struct msg_entry *entry, int thread_index)
 }
 
 /**
- * @brief Update the sent status bitmask at a given bit position
+ * @brief Set a given bit of the `sent` bitmask to a given value
  * @param entry message queue entry to updat
  * @param thread_index thread index (= bit position) to update
  * @param val value to set the bit to
  */
-void update_sent(struct msg_entry *entry, int thread_index, bool val)
+void set_sent(struct msg_entry *entry, int thread_index, bool val)
 {
 	/* change message status to sent */
 	pthread_rwlock_wrlock(&entry->sent_lock);
-	update_bit(&entry->sent, thread_index, val);
+	set_bit(&entry->sent, thread_index, val);
 	pthread_rwlock_unlock(&entry->sent_lock);
 }
 

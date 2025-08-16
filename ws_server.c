@@ -110,7 +110,7 @@ void *dst_worker(void *data)
 			pr_debug("thread %d: sending a %d-byte message\n",
 					args->thread_index, current->msg->len);
 			bytes_sent = send_ctmp_msg(args->client_fd, current->msg);
-			update_sent(current, args->thread_index, true);
+			set_sent(current, args->thread_index, true);
 		}
 
 		pthread_mutex_lock(&msg_lock);
@@ -129,17 +129,17 @@ conn_closed:
 			pthread_mutex_lock(&args->lock);
 
 			/* update status */
-			*(args->status) = THREAD_READY;
-			pthread_mutex_lock(&args->global_status->lock);
-			update_bit(&args->global_status->data,
+			*(args->self_status) = THREAD_READY;
+			pthread_mutex_lock(&args->threads_status->lock);
+			set_bit(&args->threads_status->data,
 					args->thread_index, false);
-			pthread_mutex_unlock(&args->global_status->lock);
+			pthread_mutex_unlock(&args->threads_status->lock);
 
-			while (*(args->status) != THREAD_BUSY) {
+			while (*(args->self_status) != THREAD_BUSY) {
 				pthread_cond_wait(&args->cond, &args->lock);
 			}
 			/* reset sent status for new connection */
-			update_sent(current, args->thread_index, false);
+			set_sent(current, args->thread_index, false);
 
 			pthread_mutex_unlock(&args->lock);
 			pr_debug("thread %d: got new fd %d\n",
@@ -181,14 +181,16 @@ void *dst_server(void *data)
 		/* set timestamp to be time of accepting the connection */
 		get_clock_time(&client_ts);
 
-		thread_index = find_thread(&dst);
+		thread_index = find_idle_thread(&dst);
 		while (thread_index < 0) {
 			pr_err("no thread available, retrying...\n");
 			/* exponential backoff */
 			sleep(delay);
 			delay *= 2;
-			thread_index = find_thread(&dst);
+			thread_index = find_idle_thread(&dst);
 		}
+		/* reset delay after worker thread found */
+		delay = INITIAL_DELAY;
 
 		/* check thread state */
 		switch (dst.workers[thread_index].status) {
@@ -196,7 +198,7 @@ void *dst_server(void *data)
 			init_thread_info(&dst, thread_index, new_fd, client_ts);
 
 			res = pthread_create(&dst.workers[thread_index].thread,
-					NULL, dst_worker, &dst.workers[thread_index].args);
+					NULL, run_dst_worker, &dst.workers[thread_index].args);
 			if (res != 0) {
 				perror("pthread_create");
 				exit(errno);
@@ -204,7 +206,7 @@ void *dst_server(void *data)
 			break;
 		case THREAD_READY:
 			/* reassign file descriptor and signal */
-			update_thread_info(&dst, thread_index, new_fd, client_ts);
+			wake_up_thread(&dst, thread_index, new_fd, client_ts);
 			break;
 		default:
 			break;

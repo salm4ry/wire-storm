@@ -9,8 +9,6 @@
 #define THREAD_BUSY 1 ///< Thread is working
 #define THREAD_READY 2 ///< Thread has been created and is not working
 
-/* TODO fix naming */
-
 struct status_mask {
 	uint64_t data;
 	pthread_mutex_t lock;
@@ -22,8 +20,8 @@ struct worker_args {
 	struct timespec timestamp;
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
-	int *status;
-	struct status_mask *global_status;
+	int *self_status;
+	struct status_mask *threads_status;
 };
 
 struct worker {
@@ -33,15 +31,15 @@ struct worker {
 };
 
 struct worker_list {
-	struct status_mask mask;
+	struct status_mask threads_status;
 	int num_workers;
 	struct worker *workers;
 };
 
 void init_workers(struct worker_list *list, int num_workers);
-int find_thread(struct worker_list *workers);
+int find_idle_thread(struct worker_list *workers);
 
 void init_thread_info(struct worker_list *list, int thread_index,
 		int client_fd, struct timespec client_ts);
-void update_thread_info(struct worker_list *list, int thread_index,
+void wake_up_thread(struct worker_list *list, int thread_index,
 		int client_fd, struct timespec client_ts);

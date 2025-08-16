@@ -27,6 +27,6 @@ struct msg_entry *get_msg_entry(struct msg_queue *head, pthread_mutex_t *lock,
 		struct msg_entry *prev, bool to_start);
 
 bool is_sent(struct msg_entry *entry, int thread_index);
-void update_sent(struct msg_entry *entry, int thread_index, bool val);
+void set_sent(struct msg_entry *entry, int thread_index, bool val);
 bool can_forward(struct msg_entry *entry, int thread_index,
 		struct timespec recv_start);

@@ -1,12 +1,13 @@
 /// @file
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <pthread.h>
+#include <assert.h>
 
 #include "thread.h"
 #include "timestamp.h"
+#include "log.h"
 
 /**
  * @brief Initialise worker threads
@@ -28,8 +29,8 @@ void init_workers(struct worker_list *list, int num_workers)
 	/* initialise status mask: 0 = available, 1 = busy
 	 * NOTE: this does not include the third "ready" state since that's
 	 * stored in the separate per-worker status field */
-	list->mask.data = 0;
-	pthread_mutex_init(&list->mask.lock, NULL);
+	list->threads_status.data = 0;
+	pthread_mutex_init(&list->threads_status.lock, NULL);
 
 	/* initialise thread states */
 	for (int i = 0; i < list->num_workers; i++) {
@@ -39,34 +40,34 @@ void init_workers(struct worker_list *list, int num_workers)
 		/* timestamp so that older messages are not sent */
 		get_clock_time(&(list->workers)[i].args.timestamp);
 		list->workers[i].status = THREAD_AVAILABLE;
-		list->workers[i].args.status = &(list->workers[i]).status;
-		list->workers[i].args.global_status = &list->mask;
+		list->workers[i].args.self_status = &(list->workers[i]).status;
+		list->workers[i].args.threads_status = &list->threads_status;
 	}
 }
 
 /**
- * @brief Find a non-busy thread
+ * @brief Find an idle thread
  * @param list pointer to worker thread list struct
- * @details A "non-busy" thread is either "available" (space exists but not yet
+ * @details A "idle" thread is either "available" (space exists but not yet
  created) or "ready" (thread created and waiting).
- * @return Thread index of non-busy worker thread on success, -1 on error
+ * @return Thread index of idle worker thread on success, -1 on error
  */
-int find_thread(struct worker_list *list)
+int find_idle_thread(struct worker_list *list)
 {
-	bool is_available;
+	bool is_idle;
 
 	/* iterate through bits in the status bitmask */
 	for (int i = 0; i < list->num_workers; i++) {
-		pthread_mutex_lock(&list->mask.lock);
-		is_available = !(is_set(&list->mask.data, i));
-		pthread_mutex_unlock(&list->mask.lock);
+		pthread_mutex_lock(&list->threads_status.lock);
+		is_idle = !(is_set(&list->threads_status.data, i));
+		pthread_mutex_unlock(&list->threads_status.lock);
 
-		if (is_available) {
+		if (is_idle) {
 			return i;
 		}
 	}
 
-	/* no available thread */
+	/* all threads are busy */
 	return -1;
 }
 
@@ -90,30 +91,32 @@ void init_thread_info(struct worker_list *list, int thread_index,
 	thread->args.client_fd = client_fd;
 
 	// thread->status = THREAD_BUSY;
-	*(thread->args.status) = THREAD_BUSY;
+	*(thread->args.self_status) = THREAD_BUSY;
 
-	pthread_mutex_lock(&list->mask.lock);
-	update_bit(&list->mask.data, thread_index, true);
-	pthread_mutex_unlock(&list->mask.lock);
+	pthread_mutex_lock(&list->threads_status.lock);
+	set_bit(&list->threads_status.data, thread_index, true);
+	pthread_mutex_unlock(&list->threads_status.lock);
 
 	thread->args.timestamp = client_ts;
 }
 
 /**
- * @brief Update worker thread arguments and status
+ * @brief Update a waiting worker thread's information then wake it up
  * @param list pointer to worker thread list struct
  * @param thread_index index of thread to update
  * @param client_fd new client file descriptor to set
  * @param client_ts new client timestamp to set
- * @details Update thread information then `pthread_cond_signal()` to alert the
- * corresponding thread of its new work
+ * @details Update thread arguments and status then `pthread_cond_signal()` to
+ * alert the corresponding thread of its new work
  */
-void update_thread_info(struct worker_list *list, int thread_index,
+void wake_up_thread(struct worker_list *list, int thread_index,
 		int client_fd, struct timespec client_ts)
 {
 	struct worker *thread;
 
 	thread = &(list->workers[thread_index]);
+	/* ensure that the worker thread's status is correct before continuing */
+	assert(thread->status == THREAD_READY);
 
 	/* thread already exists: update status and arguments */
 	pthread_mutex_lock(&thread->args.lock);
@@ -123,10 +126,10 @@ void update_thread_info(struct worker_list *list, int thread_index,
 
 	/* update status fields (per-thread and global) */
 	thread->status = THREAD_BUSY;
-	thread->args.status = &thread->status;
-	pthread_mutex_lock(&list->mask.lock);
-	update_bit(&list->mask.data, thread_index, true);
-	pthread_mutex_unlock(&list->mask.lock);
+	thread->args.self_status = &thread->status;
+	pthread_mutex_lock(&list->threads_status.lock);
+	set_bit(&list->threads_status.data, thread_index, true);
+	pthread_mutex_unlock(&list->threads_status.lock);
 
 	/* update timestamp */
 	thread->args.timestamp = client_ts;

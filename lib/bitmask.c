@@ -14,12 +14,12 @@ bool is_set(uint64_t *mask, int pos)
 }
 
 /**
- * @brief Update a bit at a given position
+ * @brief Set a given bit to a given value
  * @param mask bitmask to update
  * @param pos position of bit to update
  * @param val value to set the bit to
  */
-void update_bit(uint64_t *mask, int pos, bool val)
+void set_bit(uint64_t *mask, int pos, bool val)
 {
 	if (val) {
 		*mask |= (1 << pos);
