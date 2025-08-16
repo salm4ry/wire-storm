@@ -41,7 +41,7 @@ int read_msg(int fd, unsigned char *buf, uint16_t len)
 				/* interrupted by syscall: retry */
 				continue;
 			} else {
-				perror("read");
+				p_error("read", errno);
 				return -errno;
 			}
 		} else if (bytes_read == 0) {
@@ -153,20 +153,15 @@ bool valid_padding(struct ctmp_msg *msg, bool extended)
 		start = PADDING_START;
 		end = PADDING_END;
 
-		/* only check options byte if not in extended mode */
-		if ((msg->header[OPTIONS_POS] & PADDING) != 0) {
+		/* options byte should always be set to padding value if not in
+		 * extended mode */
+		if ((msg->header[OPTIONS_OFFSET] & PADDING) != 0) {
 			return false;
 		}
 	}
 
 	for (int i = start; i <= end; i++) {
 		if ((msg->header[i] & PADDING) != 0) {
-			return false;
-		}
-	}
-
-	if (!extended) {
-		if ((msg->header[OPTIONS_POS] & PADDING) != 0) {
 			return false;
 		}
 	}
@@ -183,7 +178,7 @@ bool valid_padding(struct ctmp_msg *msg, bool extended)
 void set_msg_length(struct ctmp_msg *msg)
 {
 	/* length = header bytes 2 and 3 */
-	msg->len = (msg->header[LENGTH_POS+1] << 8) + msg->header[LENGTH_POS];
+	msg->len = (msg->header[LENGTH_OFFSET+1] << 8) + msg->header[LENGTH_OFFSET];
 	/* convert from network to host order */
 	msg->len = ntohs(msg->len);
 }
@@ -200,7 +195,7 @@ int read_ctmp_data(int sender_fd, struct ctmp_msg *msg)
 
 	msg->data = malloc((msg->len+1) * sizeof(unsigned char));
 	if (!msg->data) {
-		perror("malloc");
+		p_error("malloc", errno);
 		exit(errno);
 	}
 
@@ -238,7 +233,7 @@ struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 
 	msg = malloc(sizeof(struct ctmp_msg));
 	if (!msg) {
-		perror("malloc");
+		p_error("malloc", errno);
 		exit(errno);
 	}
 	msg->data = NULL;
@@ -305,7 +300,7 @@ out:
  * @brief Calculate CTMP checksum
  * @details Checksum is the 16-bit one's complement sum of all 16-bit words in
  * the header and the data. For purposes of computing the checksum, the value of
- * the checksum field is filled with 0xCC bytes
+ * the checksum field is filled with 0xCC (magic) bytes
  * @param msg CTMP message to calculate checksum for
  * @return calculated checksum
  */
@@ -323,9 +318,9 @@ uint16_t calc_checksum(struct ctmp_msg *msg)
 	 * https://datatracker.ietf.org/doc/html/rfc1071
 	 */
 
-	/* fill checksum field (bytes 4 and 5) with 0xCC */
-	header[CHECKSUM_POS] = 0xCC;
-	header[CHECKSUM_POS+1] = 0xCC;
+	/* fill checksum field (bytes 4 and 5) with MAGIC (0xCC) */
+	header[CHECKSUM_OFFSET] = MAGIC;
+	header[CHECKSUM_OFFSET+1] = MAGIC;
 
 	addr = (uint16_t *) header;
 	/* header portion */
@@ -366,11 +361,11 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 {
 	int res = 0;
 	struct ctmp_msg *msg = NULL;
-	uint16_t header_checksum, calculated_checksum;
+	uint16_t header_checksum, expected_checksum;
 
 	msg = malloc(sizeof(struct ctmp_msg));
 	if (!msg) {
-		perror("malloc");
+		p_error("malloc", errno);
 		exit(errno);
 	}
 	msg->data = NULL;
@@ -407,25 +402,27 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 	}
 
 	/* check options */
-	switch (msg->header[OPTIONS_POS]) {
+	switch (msg->header[OPTIONS_OFFSET]) {
 	case OPT_NORM:
 		/* do nothing */
 		break;
 	case OPT_SEN:
 		/* validate checksum */
-		header_checksum = (msg->header[CHECKSUM_POS+1] << 8) + msg->header[CHECKSUM_POS];
-		calculated_checksum = calc_checksum(msg);
-		pr_debug("checksum in header: %u, calculated: %u\n", header_checksum, calculated_checksum);
+		header_checksum = (msg->header[CHECKSUM_OFFSET+1] << 8) + msg->header[CHECKSUM_OFFSET];
+		expected_checksum = calc_checksum(msg);
+		pr_debug("checksum in header: %u, calculated: %u\n", header_checksum, expected_checksum);
 
-		if (header_checksum != calculated_checksum) {
+		if (header_checksum != expected_checksum) {
 			pr_err("invalid message: checksum validation failed (found %u, expected %u)\n",
-					calculated_checksum, header_checksum);
+					expected_checksum, header_checksum);
 			free_ctmp_msg(msg);
 			msg = NULL;
 		}
 		break;
 	default:
-		pr_err("invalid options (0x%02x)\n", msg->header[OPTIONS_POS]);
+		pr_err("invalid options (0x%02x)\n", msg->header[OPTIONS_OFFSET]);
+		free_ctmp_msg(msg);
+		msg = NULL;
 		break;
 	}
 
