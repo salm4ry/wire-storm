@@ -38,13 +38,15 @@ struct args init_args;
  * @details Accept a single client connection and parse messages from it,
  * broadcasting to receivers when valid
  */
-void src_server(void *data)
+void run_src_server(void *data)
 {
 	int src_socket;
 	struct server_socket *src_server = NULL;
 	struct ctmp_msg *current_msg = NULL;
-	struct ctmp_msg *(*parse_func)(int) = NULL;   ///< CTMP message parsing function
 	struct msg_entry *new_msg_entry = NULL;
+
+	/* CTMP message parsing function */
+	struct ctmp_msg *(*ctmp_parse_func)(int) = NULL;
 
 	src_server = server_create(SRC_PORT, init_args.backlog);
 	if (!src_server) {
@@ -54,9 +56,9 @@ void src_server(void *data)
 
 	/* check which protocol version to use */
 	if (init_args.extended) {
-		parse_func = &parse_ctmp_msg_extended;
+		ctmp_parse_func = &parse_ctmp_msg_extended;
 	} else {
-		parse_func = &parse_ctmp_msg;
+		ctmp_parse_func = &parse_ctmp_msg;
 	}
 
 	while (1) {
@@ -68,7 +70,7 @@ void src_server(void *data)
 
 		/* keep parsing messages while the connection is open */
 		while (is_alive(src_socket)) {
-			current_msg = parse_func(src_socket);
+			current_msg = ctmp_parse_func(src_socket);
 			if (current_msg) {
 				init_msg_entry(&new_msg_entry, current_msg,
 						init_args.num_workers);
@@ -90,7 +92,14 @@ void src_server(void *data)
 	}
 }
 
-void *dst_worker(void *data)
+/**
+ * @brief Run destination worker
+ * @param data `struct worker_args` object (includes the client file descriptor
+ * to send messages to and its timestamp)
+ * @details Send CTMP messages to a given client (using timestamps to ensure that
+ * it only sends messages it is entitled to send)
+ */
+void *run_dst_worker(void *data)
 {
 	struct msg_entry *current = NULL, *prev = NULL, *next = NULL;
 	ssize_t bytes_sent = 0;
@@ -157,10 +166,9 @@ conn_closed:
 
 /**
  * @brief Run destination server
- * @details Accept client connections and update the shared queue of client file
- * descriptors
+ * @details Accept client connections and assign them to worker threads
  */
-void *dst_server(void *data)
+void *run_dst_server(void *data)
 {
 	int res, new_fd, thread_index, delay = INITIAL_DELAY;
 	struct timespec client_ts;
@@ -218,7 +226,12 @@ void *dst_server(void *data)
 	return NULL;
 }
 
-void *cleanup_worker(void *data)
+/**
+ * @brief Run cleanup worker
+ * @details Walk the message queue, deleting message data for entries past their
+ * TTL
+ */
+void *run_cleanup_worker(void *data)
 {
 	struct msg_entry *current = NULL, *prev = NULL, *next = NULL;
 	struct timespec now, msg_plus_ttl;
@@ -257,6 +270,10 @@ void *cleanup_worker(void *data)
 	return NULL;
 }
 
+/**
+ * @brief Start source and destination servers, destination worker threads, and
+ * cleanup worker
+ */
 int main(int argc, char *argv[])
 {
 	int res;
@@ -276,21 +293,21 @@ int main(int argc, char *argv[])
 	init_workers(&dst, init_args.num_workers);
 
 	/* create destination server thread */
-	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);
+	res = pthread_create(&dst_server_thread, NULL, &run_dst_server, NULL);
 	if (res != 0) {
 		p_error("pthread_create", errno);
 		exit(res);
 	}
 
 	/* create message cleanup thread */
-	res = pthread_create(&cleanup_thread, NULL, &cleanup_worker, NULL);
+	res = pthread_create(&cleanup_thread, NULL, &run_cleanup_worker, NULL);
 	if (res != 0) {
 		p_error("pthread_create", errno);
 		exit(res);
 	}
 
 	/* run source server */
-	src_server(NULL);
+	run_src_server(NULL);
 
 	return EXIT_SUCCESS;
 }
