@@ -408,7 +408,7 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 
 		if (header_checksum != expected_checksum) {
 			pr_err("invalid message: checksum validation failed (found %u, expected %u)\n",
-					expected_checksum, header_checksum);
+					header_checksum, expected_checksum);
 			free_ctmp_msg(msg);
 			msg = NULL;
 		}
