@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file args.c
+ * @brief Definition of command-line arguments and functions to parse them
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,9 +68,8 @@ void pr_arg_err(const char *arg_name, int arg_val, int min, int max)
  * @param argc argument count
  * @param argv argument vector
  * @param args argument structure to store results
- * @details Validate integer arguments (`num_workers` and `grace_period`) by
- * checking that they fall in the range of minimum and maximum values defined in
- * `args.h`
+ * @details Validate integer arguments by checking that they fall in the range
+ * of minimum and maximum values defined in * `args.h`
  */
 void parse_args(int argc, char *argv[], struct args *args)
 {

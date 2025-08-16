@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file bitmask.h
+ * @brief Functions for checking and setting bits in 64-bit masks
+ */
 
 #include <stdbool.h>
 #include <stdint.h>

@@ -1,4 +1,8 @@
-/// @file
+/**
+ * @file socket.c
+ * @brief Socket handling functions
+ * @details Based on https://www.geeksforgeeks.org/c/socket-programming-cc
+ */
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -10,10 +14,6 @@
 
 #include "socket.h"
 #include "log.h"
-
-/*
- * Socket code based on https://www.geeksforgeeks.org/c/socket-programming-cc/
- */
 
 /**
  * @brief Set up socket server address
@@ -34,7 +34,7 @@ struct sockaddr_in server_address(int port)
 /**
  * @brief Create socket server listening on a given port
  * @param port TCP port to listen on
- * @param backlog max pending connection queue length for listen()
+ * @param backlog max pending connection queue length for `listen()`
  * @return pointer to `struct server_socket` (including file descriptor) on
  * success, NULL on error
  */
@@ -123,12 +123,13 @@ void server_close(struct server_socket *server)
  * @param fd socket file descriptor
  * @return true if the connection is still alive, false if the client has closed
  * the connection
+ * @details Based on http://stefan.buettcher.org/cs/conn_closed.html
  */
 bool is_alive(int fd)
 {
 	char test_buffer;
 
-	/* based on: http://stefan.buettcher.org/cs/conn_closed.html
+	/*
 	 * MSG_PEEK: return data without removing it from the queue
 	 * MSG_DONTWAIT: enable nonblocking
 	 *

@@ -1,4 +1,8 @@
-/// @file
+/**
+ * @file args.h
+ * @brief Constants, structs, and functions relating to command-line arguments
+ * @details Defines default, minimum, and maximum values
+ */
 
 #include <stdbool.h>
 #include <getopt.h>

@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file msg_queue.c
+ * @brief Definitions of functions for manipulating the message queue
+ */
 
 #include <stdlib.h>
 #include <errno.h>

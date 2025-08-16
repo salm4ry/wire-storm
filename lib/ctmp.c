@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file ctmp.c
+ * @brief Functions to read, parse, and send CTMP messages
+ */
 
 #include <stdio.h>
 #include <stdlib.h>

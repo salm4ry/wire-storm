@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file log.c
+ * @brief Definitions of logging functions, including debug and error messages
+ */
 
 #include <stdio.h>
 #include <string.h>

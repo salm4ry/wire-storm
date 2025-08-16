@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file thread.c
+ * @brief Functions for handling worker threads
+ */
 
 #include <stdlib.h>
 #include <errno.h>
@@ -26,9 +29,7 @@ void init_workers(struct worker_list *list, int num_workers)
 		exit(errno);
 	}
 
-	/* initialise status mask: 0 = available, 1 = busy
-	 * NOTE: this does not include the third "ready" state since that's
-	 * stored in the separate per-worker status field */
+	/* initialise status mask: 0 = idle, 1 = busy */
 	list->threads_status.data = 0;
 	pthread_mutex_init(&list->threads_status.lock, NULL);
 
@@ -49,7 +50,7 @@ void init_workers(struct worker_list *list, int num_workers)
  * @brief Find an idle thread
  * @param list pointer to worker thread list struct
  * @details A "idle" thread is either "available" (space exists but not yet
- created) or "ready" (thread created and waiting).
+ * created) or "ready" (thread created and waiting).
  * @return Thread index of idle worker thread on success, -1 on error
  */
 int find_idle_thread(struct worker_list *list)

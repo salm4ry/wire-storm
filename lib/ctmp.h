@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file ctmp.h
+ * @brief Constants, structs, and functions relating to CTMP messages
+ */
 
 #include <stdio.h>
 #include <stdint.h>

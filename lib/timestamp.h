@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file timestamp.h
+ * @brief Functions relating to timestamps
+ */
 
 #include <stdbool.h>
 #include <time.h>

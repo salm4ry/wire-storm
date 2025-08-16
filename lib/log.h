@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file log.h
+ * @brief Logging constants and functions
+ */
 
 #include <stdio.h>
 #include <string.h>  /* required for p_error macro */

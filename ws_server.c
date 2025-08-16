@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file ws_server.c
+ * @brief Server code: contains `main()`
+ */
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file msg_queue.h
+ * @brief Message queue struct definition and related functions
+ */
 
 #include <stdbool.h>
 #include <time.h>

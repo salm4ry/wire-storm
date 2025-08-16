@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file timestamp.c
+ * @brief Definitions of functions relating to timestamps
+ */
 
 #include "timestamp.h"
 #include "log.h"

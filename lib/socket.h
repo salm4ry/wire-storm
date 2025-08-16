@@ -1,4 +1,7 @@
-/// @file
+/**
+ * @file socket.h
+ * @brief Constants, structs and functions relating to sockets
+ */
 
 #include <stdbool.h>
 #include <netinet/in.h>
