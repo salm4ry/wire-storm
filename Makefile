@@ -10,7 +10,12 @@ top_dir := $(PWD)
 
 lib_dir := $(top_dir)/lib
 lib := $(lib_dir)/libwirestorm.so
+
+lib_src := $(wildcard $(lib_dir)/*.c)
+lib_src += $(wildcard $(lib_dir)/*.h)
+
 doc_dir := $(top_dir)/doc
+
 
 man_page := man/ws_server.roff
 doxyfile = doc/Doxyfile
@@ -26,7 +31,8 @@ all: $(obj)
 			$(error $(comm) not found, consider installing)))
 	$(CC) -Llib -Ilib $< -o $@ $(CFLAGS) -lwirestorm
 
-$(lib):
+# .so depends on source files in lib directory
+$(lib): $(lib_src)
 	cd $(lib_dir) && make
 
 .PHONY: help
