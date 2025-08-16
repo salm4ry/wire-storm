@@ -1,6 +1,5 @@
 /// @file
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -10,6 +9,7 @@
 #include <pthread.h>
 
 #include "socket.h"
+#include "log.h"
 
 /*
  * Socket code based on https://www.geeksforgeeks.org/c/socket-programming-cc/
@@ -45,20 +45,20 @@ struct server_socket *server_create(int port, int backlog)
 
 	server = malloc(sizeof (struct server_socket));
 	if (!server) {
-		perror("malloc");
+		p_error("malloc", errno);
 		exit(errno);
 	}
 
 	/* set up socket */
 	if ((server->fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		perror("socket");
+		p_error("socket", errno);
 		goto cleanup;
 	}
 
 	/* set socket options */
 	if (setsockopt(server->fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
 				&opt, sizeof(opt))) {
-		perror("setsockopt");
+		p_error("setsockopt", errno);
 		goto cleanup;
 	}
 
@@ -66,14 +66,14 @@ struct server_socket *server_create(int port, int backlog)
 	server->addr = server_address(port);
 
 	if (bind(server->fd, (struct sockaddr *) &server->addr, sizeof(server->addr)) < 0) {
-		perror("bind");
+		p_error("bind", errno);
 		goto cleanup;
 	}
 
 	/* listen for connections
 	 * backlog = max number of pending connections */
 	if (listen(server->fd, backlog) < 0) {
-		perror("listen");
+		p_error("listen", errno);
 		goto cleanup;
 	}
 
@@ -99,7 +99,7 @@ int server_accept(int server_fd, struct sockaddr_in address)
 	socklen_t addrlen = sizeof(address);
 
 	if ((new_socket = accept(server_fd, (struct sockaddr *) &address, &addrlen)) == -1) {
-		perror("accept");
+		p_error("accept", errno);
 		/* check if we should retry */
 		return -errno;
 	}

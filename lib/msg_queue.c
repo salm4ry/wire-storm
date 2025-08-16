@@ -1,12 +1,12 @@
 /// @file
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 
 #include "ctmp.h"
 #include "msg_queue.h"
 #include "timestamp.h"
+#include "log.h"
 
 /**
  * @brief Initialise a message queue entry
@@ -20,7 +20,7 @@ void init_msg_entry(struct msg_entry **entry, struct ctmp_msg *msg,
 {
 	(*entry) = malloc(sizeof(struct msg_entry));
 	if (!(*entry)) {
-		perror("malloc");
+		p_error("malloc", errno);
 		exit(errno);
 	}
 

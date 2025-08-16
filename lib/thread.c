@@ -22,7 +22,7 @@ void init_workers(struct worker_list *list, int num_workers)
 	list->num_workers = num_workers;
 	list->workers = malloc(list->num_workers * sizeof(struct worker));
 	if (!list->workers) {
-		perror("malloc");
+		p_error("malloc", errno);
 		exit(errno);
 	}
 

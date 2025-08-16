@@ -200,7 +200,7 @@ void *dst_server(void *data)
 			res = pthread_create(&dst.workers[thread_index].thread,
 					NULL, run_dst_worker, &dst.workers[thread_index].args);
 			if (res != 0) {
-				perror("pthread_create");
+				p_error("pthread_create", errno);
 				exit(errno);
 			}
 			break;
@@ -276,14 +276,14 @@ int main(int argc, char *argv[])
 	/* create destination server thread */
 	res = pthread_create(&dst_server_thread, NULL, &dst_server, NULL);
 	if (res != 0) {
-		perror("pthread_create");
+		p_error("pthread_create", errno);
 		exit(res);
 	}
 
 	/* create message cleanup thread */
 	res = pthread_create(&cleanup_thread, NULL, &cleanup_worker, NULL);
 	if (res != 0) {
-		perror("pthread_create");
+		p_error("pthread_create", errno);
 		exit(res);
 	}
 
