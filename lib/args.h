@@ -1,21 +1,21 @@
 /// @file
 
-#include <stdlib.h>
 #include <stdbool.h>
 #include <getopt.h>
 
-#define DEFAULT_NUM_WORKERS 32 ///< default number of client worker threads
+#define DEFAULT_EXTENDED false  ///< use original CTMP by default
+
 #define MIN_NUM_WORKERS 1  ///< need at least one thread to handle receivers
 #define MAX_NUM_WORKERS 64  ///< bounded by `sent` field `struct msg_entry`
+#define DEFAULT_NUM_WORKERS 32 ///< default number of client worker threads
 
-#define DEFAULT_BACKLOG DEFAULT_NUM_WORKERS  ///< default backlog for listen()
-/* TODO change min/max backlog? */
 #define MIN_BACKLOG MIN_NUM_WORKERS
 #define MAX_BACKLOG MAX_NUM_WORKERS
+#define DEFAULT_BACKLOG DEFAULT_NUM_WORKERS  ///< default backlog for listen()
 
-#define DEFAULT_TTL 5  ///< default time that messages remain in memory for
 #define MIN_TTL 2
 #define MAX_TTL 10
+#define DEFAULT_TTL 5  ///< default time that messages remain in memory for
 
 /**
  * @brief Command-line arguments

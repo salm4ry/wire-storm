@@ -1,6 +1,7 @@
 /// @file
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <libgen.h>
 
 #include "args.h"
@@ -42,7 +43,7 @@ void usage(char *prog_name)
  */
 void set_default_args(struct args *args)
 {
-	args->extended = false;
+	args->extended = DEFAULT_EXTENDED;
 	args->num_workers = DEFAULT_NUM_WORKERS;
 	args->backlog = DEFAULT_BACKLOG;
 	args->ttl = DEFAULT_TTL;
