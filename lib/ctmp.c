@@ -48,8 +48,6 @@ int read_msg(int fd, unsigned char *buf, uint16_t len)
 			break;
 		}
 		total_bytes_read += bytes_read;
-		pr_debug("read %d, total %d, expected %d\n",
-				bytes_read, total_bytes_read, len);
 	} while (total_bytes_read < len);
 
 	if (total_bytes_read == 0) {
@@ -99,10 +97,6 @@ int send_msg(int fd, unsigned char *buf, uint16_t len)
 			break;
 		}
 		total_bytes_sent += bytes_sent;
-		/*
-		pr_debug("sent %d, total %d, expected %d\n",
-				bytes_sent, total_bytes_sent, len);
-		*/
 	} while (total_bytes_sent < len);
 
 	if (total_bytes_sent == len) {
