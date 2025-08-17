@@ -152,8 +152,11 @@ conn_closed:
 			while (*(args->self_status) != THREAD_BUSY) {
 				pthread_cond_wait(&args->cond, &args->lock);
 			}
-			/* reset sent status for new connection */
-			set_sent(current, args->thread_index, false);
+
+			if (current->sent) {
+				/* reset sent status for new connection */
+				set_sent(current, args->thread_index, false);
+			}
 
 			pthread_mutex_unlock(&args->lock);
 			pr_debug("thread %d: got new fd %d\n",
@@ -253,10 +256,7 @@ void *run_cleanup_worker(void *data)
 			if (compare_times(&msg_plus_ttl, &now)) {
 				pr_debug("cleanup: freeing %d-byte message\n",
 						current->msg->len);
-				pthread_mutex_lock(&msg_lock);
-				free_ctmp_msg(current->msg);
-				current->msg = NULL;
-				pthread_mutex_unlock(&msg_lock);
+				free_msg_data(&current, &msg_lock);
 			}
 		}
 

@@ -30,11 +30,39 @@ void init_msg_entry(struct msg_entry **entry, struct ctmp_msg *msg,
 	/* init timestamp */
 	get_clock_time(&(*entry)->timestamp);
 
-	(*entry)->msg = msg;
-
 	/* init sent status bitmask and associated lock */
-	(*entry)->sent = 0;
+	(*entry)->sent = malloc(sizeof(uint64_t));
+	if (!(*entry)->sent) {
+		p_error("malloc", errno);
+		exit(errno);
+	}
+	*((*entry)->sent) = 0;
 	pthread_rwlock_init(&(*entry)->sent_lock, NULL);
+
+	/* set pointer to message data */
+	(*entry)->msg = msg;
+}
+
+/**
+ * @brief Free CTMP message data of a given message queue entry
+ * @param entry entry to free message data of
+ * @param msg_lock message queue lock
+ * @details Free message sent status bitmask and `struct ctmp_msg` data
+ */
+void free_msg_data(struct msg_entry **entry, pthread_mutex_t *msg_lock)
+{
+	pthread_mutex_lock(msg_lock);
+
+	/* free sent status bitmask and related lock */
+	free((*entry)->sent);
+	(*entry)->sent = NULL;
+	pthread_rwlock_destroy(&(*entry)->sent_lock);
+
+	/* free message data */
+	free_ctmp_msg((*entry)->msg);
+	(*entry)->msg = NULL;
+
+	pthread_mutex_unlock(msg_lock);
 }
 
 /**
@@ -101,7 +129,7 @@ bool is_sent(struct msg_entry *entry, int thread_index)
 	bool res;
 
 	pthread_rwlock_rdlock(&entry->sent_lock);
-	res = is_set(&entry->sent, thread_index);
+	res = is_set(entry->sent, thread_index);
 	pthread_rwlock_unlock(&entry->sent_lock);
 
 	return res;
@@ -117,7 +145,7 @@ void set_sent(struct msg_entry *entry, int thread_index, bool val)
 {
 	/* change message status to sent */
 	pthread_rwlock_wrlock(&entry->sent_lock);
-	set_bit(&entry->sent, thread_index, val);
+	set_bit(entry->sent, thread_index, val);
 	pthread_rwlock_unlock(&entry->sent_lock);
 }
 
@@ -134,6 +162,8 @@ void set_sent(struct msg_entry *entry, int thread_index, bool val)
 bool can_forward(struct msg_entry *entry, int thread_index,
 		struct timespec recv_start)
 {
-	return (!is_sent(entry, thread_index) &&
-			compare_times(&recv_start, &entry->timestamp));
+	/* timestamp check before sent status because sent could have been freed
+	 * by the cleanup worker if the message is past its TTL */
+	return (compare_times(&recv_start, &entry->timestamp)
+			&& (!is_sent(entry, thread_index)));
 }
