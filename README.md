@@ -58,7 +58,7 @@ $ python3 wire-storm-reloaded-1.0.0/tests.py
 ## Documentation
 
 Generate HTML and LaTeX documentation available using `make docs` (uses
-`doxygen`).
+[doxygen](https://www.doxygen.nl/index.html))
 
 To view the HTML documentation in a browser:
 
