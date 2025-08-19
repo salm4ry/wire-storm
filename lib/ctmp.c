@@ -245,8 +245,8 @@ struct ctmp_msg *parse_ctmp_msg(int sender_fd)
 
 	/* validate magic byte (first byte of header) */
 	if (!valid_magic(msg)) {
-		pr_err("invalid message: magic byte check failed (found 0x%02x)\n",
-				msg->header[0]);
+		pr_err("invalid message: magic byte check failed (found 0x%02x, expected 0x%02x)\n",
+				msg->header[0], MAGIC);
 		free_ctmp_msg(msg);
 		msg = NULL;
 		goto out;
@@ -378,7 +378,8 @@ struct ctmp_msg *parse_ctmp_msg_extended(int sender_fd)
 
 	/* validate magic byte (first byte of header) */
 	if (!valid_magic(msg)) {
-		pr_err("invalid message: magic byte check failed (found 0x%02x)\n", msg->header[0]);
+		pr_err("invalid message: magic byte check failed (found 0x%02x, expected 0x%02x)\n",
+				msg->header[0], MAGIC);
 		free(msg);
 		msg = NULL;
 		goto out;
